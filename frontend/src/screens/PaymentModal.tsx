@@ -313,30 +313,6 @@ export default function PaymentModal({ shop, onClose, onSuccess }: PaymentModalP
             </div>
           )}
 
-          {/* Pay Tomorrow Button */}
-          <div className="pt-2">
-            <button
-              onClick={handlePayTomorrow}
-              disabled={processing || todayAmount === 0 || shop.status === 'pay_tomorrow'}
-              className={`w-full px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-                todayAmount > 0 && shop.status !== 'pay_tomorrow'
-                  ? 'bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              <Clock className="w-4 h-4" />
-              <span>
-                {shop.status === 'pay_tomorrow'
-                  ? 'Already Deferred'
-                  : `Pay Tomorrow (₹{todayAmount.toFixed(2)})`}
-              </span>
-            </button>
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              {shop.status === 'pay_tomorrow'
-                ? 'Payment already deferred to tomorrow'
-                : 'Move today\'s payment to tomorrow\'s pending list'}
-            </p>
-          </div>
 
           {/* Custom Amount Input */}
           <div>
@@ -398,6 +374,23 @@ export default function PaymentModal({ shop, onClose, onSuccess }: PaymentModalP
               {processing ? 'Processing...' : 'Process Payment'}
             </button>
           </div>
+
+          {/* Process Payment Button - Only show if there's today's amount and not already deferred */}
+          {todayAmount > 0 && shop.status !== 'pay_tomorrow' && (
+            <div className="mt-3">
+              <button
+                onClick={handlePayTomorrow}
+                disabled={processing}
+                className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>Process Payment</span>
+              </button>
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                Move today's payment to tomorrow's pending list
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

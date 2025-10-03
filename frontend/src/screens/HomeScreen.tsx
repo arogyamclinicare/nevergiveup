@@ -1,5 +1,3 @@
-import TestControls from './TestControls'
-
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
   onCollectionRefresh?: () => void
@@ -16,17 +14,6 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
           Manage daily milk deliveries, collect payments, and track business performance.
         </p>
       </div>
-
-      {/* Test Controls for Multi-Day Testing */}
-      <TestControls 
-        onDateChange={() => {
-          // Trigger both delivery and collection refresh
-          if (onDeliveryRefresh) onDeliveryRefresh()
-          if (onCollectionRefresh) onCollectionRefresh()
-          // Also reload the page to ensure complete refresh
-          window.location.reload()
-        }} 
-      />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">

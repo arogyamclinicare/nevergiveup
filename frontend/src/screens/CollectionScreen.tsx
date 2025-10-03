@@ -52,11 +52,11 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
       case 'paid':
         return <CheckCircle className="w-5 h-5 text-green-600" />
       case 'partial':
-        return <Clock className="w-5 h-5 text-yellow-600" />
+        return <CheckCircle className="w-5 h-5 text-blue-600" />
       case 'pending':
         return <AlertCircle className="w-5 h-5 text-red-600" />
       case 'pay_tomorrow':
-        return <Clock className="w-5 h-5 text-orange-600" />
+        return <Clock className="w-5 h-5 text-purple-600" />
       default:
         return <AlertCircle className="w-5 h-5 text-gray-600" />
     }
@@ -67,11 +67,11 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
       case 'paid':
         return 'bg-green-50 border-green-200'
       case 'partial':
-        return 'bg-yellow-50 border-yellow-200'
+        return 'bg-blue-50 border-blue-200'
       case 'pending':
         return 'bg-red-50 border-red-200'
       case 'pay_tomorrow':
-        return 'bg-orange-50 border-orange-200'
+        return 'bg-purple-50 border-purple-200'
       default:
         return 'bg-gray-50 border-gray-200'
     }
@@ -84,7 +84,7 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
       case 'partial':
         return 'Partially Paid'
       case 'pending':
-        return 'Pending'
+        return 'Pending Payment'
       case 'pay_tomorrow':
         return 'Pay Tomorrow'
       default:

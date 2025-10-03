@@ -1,20 +1,36 @@
-import { Home, Truck, DollarSign, BarChart3, Settings } from 'lucide-react'
+import React from 'react'
+import { Home, Truck, DollarSign, BarChart3, Settings, LogOut } from 'lucide-react'
 
 type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
 
 interface BottomNavProps {
   activeTab: Tab
   onTabChange: (tab: Tab) => void
+  userRole?: string
+  onLogout?: () => void
 }
 
-export default function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
-  const tabs = [
-    { id: 'home' as Tab, icon: Home, label: 'Home' },
-    { id: 'delivery' as Tab, icon: Truck, label: 'Delivery' },
-    { id: 'collection' as Tab, icon: DollarSign, label: 'Collection' },
-    { id: 'reports' as Tab, icon: BarChart3, label: 'Reports' },
-    { id: 'settings' as Tab, icon: Settings, label: 'Settings' },
-  ]
+export default function BottomNav({ activeTab, onTabChange, userRole, onLogout }: BottomNavProps) {
+  // Role-based navigation
+  const getTabsForRole = (role: string) => {
+    const allTabs = [
+      { id: 'home' as Tab, icon: Home, label: 'Home' },
+      { id: 'delivery' as Tab, icon: Truck, label: 'Delivery' },
+      { id: 'collection' as Tab, icon: DollarSign, label: 'Collection' },
+      { id: 'reports' as Tab, icon: BarChart3, label: 'Reports' },
+      { id: 'settings' as Tab, icon: Settings, label: 'Settings' },
+    ]
+    
+    if (role === 'staff') {
+      // Staff can access everything except settings
+      return allTabs.filter(tab => tab.id !== 'settings')
+    }
+    
+    // Owner can access everything
+    return allTabs
+  }
+
+  const tabs = getTabsForRole(userRole || 'owner')
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-inset-bottom">

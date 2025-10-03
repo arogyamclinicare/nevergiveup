@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import AppLayout from './components/Layout/AppLayout'
 import BottomNav from './components/Layout/BottomNav'
+import LoginScreen from './screens/LoginScreen'
 import HomeScreen from './screens/HomeScreen'
 import DeliveryScreen from './screens/DeliveryScreen'
 import AddDeliveryScreen from './screens/AddDeliveryScreen'
@@ -21,6 +22,25 @@ function App() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [collectionRefreshTrigger, setCollectionRefreshTrigger] = useState(0)
   const [deliveryRefreshTrigger, setDeliveryRefreshTrigger] = useState(0)
+  
+  // Authentication state
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string>('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  // Authentication handlers
+  const handleLoginSuccess = (user: any, role: string) => {
+    setUser(user)
+    setUserRole(role)
+    setIsAuthenticated(true)
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    setUserRole('')
+    setIsAuthenticated(false)
+    setActiveTab('home')
+  }
 
   const handleSelectShop = (shop: Shop) => {
     setSelectedShop(shop)
@@ -66,6 +86,8 @@ function App() {
             title={`Add Delivery`}
             showBackButton
             onBack={handleBackToShopList}
+              showLogoutButton={userRole === 'staff'}
+              onLogout={handleLogout}
           >
             <AddDeliveryScreen
               shop={selectedShop}
@@ -76,8 +98,8 @@ function App() {
         )
       }
       
-      return (
-        <AppLayout title="Delivery">
+        return (
+          <AppLayout title="Delivery" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
           {successMessage && (
             <div className="mx-4 mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
               <p className="text-sm text-green-800 font-medium">{successMessage}</p>
@@ -95,7 +117,7 @@ function App() {
     switch (activeTab) {
       case 'home':
         return (
-          <AppLayout title="Milk Delivery App">
+          <AppLayout title="Milk Delivery App" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
             <HomeScreen 
               onDeliveryRefresh={() => setDeliveryRefreshTrigger(prev => prev + 1)}
               onCollectionRefresh={() => setCollectionRefreshTrigger(prev => prev + 1)}
@@ -104,7 +126,7 @@ function App() {
         )
       case 'collection':
         return (
-          <AppLayout title="Collection">
+          <AppLayout title="Collection" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
             {successMessage && (
               <div className="mx-4 mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
                 <p className="text-sm text-green-800 font-medium">{successMessage}</p>
@@ -118,14 +140,14 @@ function App() {
         )
       case 'reports':
         return (
-          <AppLayout title="Reports">
+          <AppLayout title="Reports" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
             <ReportsScreen />
           </AppLayout>
         )
       case 'settings':
         return (
-          <AppLayout title="Settings">
-            <SettingsScreen />
+          <AppLayout title="Settings" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
+            <SettingsScreen userRole={userRole} onLogout={handleLogout} />
           </AppLayout>
         )
       default:
@@ -133,10 +155,20 @@ function App() {
     }
   }
 
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />
+  }
+
   return (
     <div className="h-screen overflow-hidden">
       {renderContent()}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        userRole={userRole}
+        onLogout={handleLogout}
+      />
       
       {/* Payment Modal */}
       {selectedCollectionShop && (

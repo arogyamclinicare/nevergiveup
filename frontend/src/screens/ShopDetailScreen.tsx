@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Package, DollarSign, Clock, User, Phone, MapPin, FileText } from 'lucide-react'
+import { ArrowLeft, Package, DollarSign, Clock, User, Phone, MapPin, FileText, CheckCircle, AlertCircle, Truck, CreditCard } from 'lucide-react'
 
 interface ShopDetailData {
   shop_id: string
@@ -174,6 +174,7 @@ export default function ShopDetailScreen({ shopId, date, onBack }: ShopDetailScr
         </div>
       </div>
 
+
       {/* Products Delivered */}
       {shopData.products_delivered && shopData.products_delivered.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-100">
@@ -186,51 +187,95 @@ export default function ShopDetailScreen({ shopId, date, onBack }: ShopDetailScr
           <div className="divide-y divide-gray-100">
             {shopData.products_delivered.map((delivery: any, index: number) => (
               <div key={delivery.delivery_id || index} className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-500">
-                    Delivery #{index + 1}
-                  </span>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    delivery.payment_status === 'paid'
-                      ? 'bg-green-100 text-green-700'
-                      : delivery.payment_status === 'partial'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {delivery.payment_status}
-                  </span>
+                {/* Delivery Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <Truck className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium text-gray-900">
+                      Delivery #{index + 1}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {delivery.payment_status === 'paid' && (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    )}
+                    {delivery.payment_status === 'partial' && (
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    )}
+                    {delivery.payment_status === 'pending' && (
+                      <Clock className="w-4 h-4 text-red-500" />
+                    )}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      delivery.payment_status === 'paid'
+                        ? 'bg-green-100 text-green-700'
+                        : delivery.payment_status === 'partial'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : delivery.payment_status === 'pay_tomorrow'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {delivery.payment_status === 'paid' ? 'Fully Paid' : 
+                       delivery.payment_status === 'partial' ? 'Partially Paid' :
+                       delivery.payment_status === 'pay_tomorrow' ? 'Pay Tomorrow' :
+                       'Pending Payment'}
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Products List */}
                 {delivery.products && Array.isArray(delivery.products) && (
-                  <div className="space-y-1 mb-2">
-                    {delivery.products.map((product: any, pIndex: number) => (
-                      <div key={pIndex} className="flex justify-between text-xs">
-                        <span className="text-gray-600">
-                          {product.name} x {product.quantity}
-                        </span>
-                        <span className="font-medium">
-                          {formatCurrency(product.subtotal)}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="bg-gray-50 rounded-lg p-2 mb-3">
+                    <div className="space-y-1">
+                      {delivery.products.map((product: any, pIndex: number) => (
+                        <div key={pIndex} className="flex justify-between text-xs">
+                          <span className="text-gray-700">
+                            {product.name} x {product.quantity}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {formatCurrency(product.subtotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">
-                    Total: {formatCurrency(delivery.total_amount)}
-                  </span>
-                  <span className="text-gray-600">
-                    Paid: {formatCurrency(delivery.payment_amount)}
-                  </span>
+                {/* Financial Summary */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-blue-50 rounded p-2 text-center">
+                    <p className="text-xs text-blue-600">Total Amount</p>
+                    <p className="text-sm font-bold text-blue-800">
+                      {formatCurrency(delivery.total_amount)}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 rounded p-2 text-center">
+                    <p className="text-xs text-green-600">Amount Paid</p>
+                    <p className="text-sm font-bold text-green-800">
+                      {formatCurrency(delivery.payment_amount)}
+                    </p>
+                  </div>
                 </div>
                 
-                {delivery.delivery_boy && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    By: {delivery.delivery_boy}
-                  </p>
-                )}
+                {/* Delivery & Collection Info */}
+                <div className="space-y-2">
+                  {delivery.delivery_boy && (
+                    <div className="flex items-center space-x-2 text-xs">
+                      <Truck className="w-3 h-3 text-blue-500" />
+                      <span className="text-gray-600">Delivered by:</span>
+                      <span className="font-medium text-gray-900">{delivery.delivery_boy}</span>
+                    </div>
+                  )}
+                  
+                  {delivery.delivered_at && (
+                    <div className="flex items-center space-x-2 text-xs">
+                      <Clock className="w-3 h-3 text-gray-500" />
+                      <span className="text-gray-600">Delivered at:</span>
+                      <span className="font-medium text-gray-900">
+                        {formatDateTime(delivery.delivered_at)}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -242,27 +287,54 @@ export default function ShopDetailScreen({ shopId, date, onBack }: ShopDetailScr
         <div className="bg-white rounded-lg border border-gray-100">
           <div className="p-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center">
-              <DollarSign className="w-4 h-4 mr-2" />
-              Payment History
+              <CreditCard className="w-4 h-4 mr-2" />
+              Payment Collection History
             </h3>
           </div>
           <div className="divide-y divide-gray-100">
             {shopData.payment_history.map((payment: any, index: number) => (
               <div key={payment.payment_id || index} className="p-3">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatCurrency(payment.amount)}
-                  </span>
+                {/* Payment Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-bold text-gray-900">
+                      {formatCurrency(payment.amount)}
+                    </span>
+                  </div>
                   <span className="text-xs text-gray-500">
                     {formatDateTime(payment.created_at)}
                   </span>
                 </div>
-                <div className="text-xs text-gray-600">
-                  <p>Collected by: {payment.collected_by}</p>
-                  {payment.notes && (
-                    <p className="mt-1">Note: {payment.notes}</p>
-                  )}
+                
+                {/* Collection Info */}
+                <div className="bg-green-50 rounded-lg p-2 mb-2">
+                  <div className="flex items-center space-x-2 text-xs">
+                    <User className="w-3 h-3 text-green-600" />
+                    <span className="text-green-700">Collected by:</span>
+                    <span className="font-medium text-green-800">{payment.collected_by}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs mt-1">
+                    <Clock className="w-3 h-3 text-green-600" />
+                    <span className="text-green-700">Payment Date:</span>
+                    <span className="font-medium text-green-800">
+                      {new Date(payment.payment_date).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
+                
+                {/* Notes */}
+                {payment.notes && (
+                  <div className="bg-gray-50 rounded p-2">
+                    <div className="flex items-start space-x-2 text-xs">
+                      <FileText className="w-3 h-3 text-gray-500 mt-0.5" />
+                      <div>
+                        <span className="text-gray-600">Note:</span>
+                        <p className="text-gray-700 mt-1">{payment.notes}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

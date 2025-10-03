@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Calendar, BarChart3, Store, Clock, DollarSign, TrendingUp } from 'lucide-react'
+import { Store, Clock, DollarSign, TrendingUp } from 'lucide-react'
 
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
@@ -82,17 +82,6 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen" data-testid="home-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">BrainGrid Milk</h1>
-          <p className="text-sm text-gray-600">{currentDate}</p>
-        </div>
-        <div className="flex space-x-3">
-          <Calendar className="w-5 h-5 text-gray-600" />
-          <BarChart3 className="w-5 h-5 text-gray-600" />
-        </div>
-      </div>
 
       {/* Today's Route Card */}
       <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 mb-6 border border-purple-200">

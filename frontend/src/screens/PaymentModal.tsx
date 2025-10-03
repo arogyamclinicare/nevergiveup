@@ -384,7 +384,7 @@ export default function PaymentModal({ shop, onClose, onSuccess }: PaymentModalP
                 className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
                 <Clock className="w-4 h-4" />
-                <span>Process Payment</span>
+                <span>Pay Tomorrow</span>
               </button>
               <p className="text-xs text-gray-500 mt-1 text-center">
                 Move today's payment to tomorrow's pending list

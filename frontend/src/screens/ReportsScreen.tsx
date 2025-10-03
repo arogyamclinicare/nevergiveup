@@ -216,7 +216,10 @@ export default function ReportsScreen() {
                   </span>
                   <div className="text-right">
                     <p className="text-sm font-bold text-gray-900">
-                      {formatCurrency(shop.total_pending)}
+                      {shop.status === 'paid' 
+                        ? formatCurrency(shop.today_paid) 
+                        : formatCurrency(shop.total_pending)
+                      }
                     </p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase, CollectionViewRow } from '../lib/supabase'
 import { ChevronRight, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 

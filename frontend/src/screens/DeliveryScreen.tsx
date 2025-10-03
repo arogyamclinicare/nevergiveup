@@ -45,7 +45,8 @@ export default function DeliveryScreen({ onSelectShop, refreshTrigger }: Deliver
         .from('shops')
         .select('*')
         .eq('is_active', true)
-        .order('name')
+        .order('route_number', { ascending: true })
+        .order('name', { ascending: true })
       
       if (error) throw error
       
@@ -152,7 +153,14 @@ export default function DeliveryScreen({ onSelectShop, refreshTrigger }: Deliver
               <div className="flex items-center space-x-3">
                 {getStatusIcon()}
                 <div className="text-left">
-                  <h3 className="font-semibold text-gray-900">{shop.name}</h3>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <h3 className="font-semibold text-gray-900">{shop.name}</h3>
+                    {shop.route_number && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        {shop.route_number}
+                      </span>
+                    )}
+                  </div>
                   {shop.owner_name && (
                     <p className="text-sm text-gray-600">Owner: {shop.owner_name}</p>
                   )}

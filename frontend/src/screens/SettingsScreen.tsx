@@ -1,13 +1,24 @@
 import { useState } from 'react'
-import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon } from 'lucide-react'
+import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, Store, Package, Database } from 'lucide-react'
 import ResetDialog from './ResetDialog'
+import ShopManagementScreen from './ShopManagementScreen'
+import ProductManagementScreen from './ProductManagementScreen'
 
 export default function SettingsScreen() {
   const [showResetDialog, setShowResetDialog] = useState(false)
+  const [activeTab, setActiveTab] = useState<'main' | 'shops' | 'products'>('main')
 
   const handleResetSuccess = () => {
     // Refresh the app or show success message
     window.location.reload()
+  }
+
+  if (activeTab === 'shops') {
+    return <ShopManagementScreen />
+  }
+
+  if (activeTab === 'products') {
+    return <ProductManagementScreen />
   }
 
   return (
@@ -16,6 +27,45 @@ export default function SettingsScreen() {
       <div className="flex items-center space-x-2 mb-3">
         <SettingsIcon className="w-5 h-5 text-gray-600" />
         <h1 className="text-lg font-bold text-gray-900">Settings</h1>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="bg-white rounded-lg border border-gray-100">
+        <div className="flex border-b border-gray-100">
+          <button
+            onClick={() => setActiveTab('main')}
+            className={`flex-1 p-3 text-sm font-medium ${
+              activeTab === 'main' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Database className="w-4 h-4 mx-auto mb-1" />
+            Main Settings
+          </button>
+          <button
+            onClick={() => setActiveTab('shops')}
+            className={`flex-1 p-3 text-sm font-medium ${
+              activeTab === 'shops' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Store className="w-4 h-4 mx-auto mb-1" />
+            Shops
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`flex-1 p-3 text-sm font-medium ${
+              activeTab === 'products' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Package className="w-4 h-4 mx-auto mb-1" />
+            Products
+          </button>
+        </div>
       </div>
 
 

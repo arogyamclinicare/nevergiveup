@@ -48,7 +48,7 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
         .rpc('get_collection_view', { p_date: today })
 
 
-      const delivered = deliveries?.reduce((sum, d) => sum + (d.delivery_status === 'delivered' ? Number(d.total_amount) : 0), 0) || 0
+      const delivered = deliveries?.reduce((sum, d) => sum + Number(d.total_amount), 0) || 0
       const collected = deliveries?.reduce((sum, d) => sum + Number(d.payment_amount), 0) || 0
       const pending = collectionData?.reduce((sum, c) => sum + Number(c.total_pending), 0) || 0
       // Count shops that have any deliveries (regardless of status) as visited

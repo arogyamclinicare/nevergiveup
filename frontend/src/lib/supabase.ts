@@ -67,7 +67,7 @@ export type CollectionViewRow = {
   today_pending: number
   old_pending: number
   total_pending: number
-  status: 'paid' | 'partial' | 'pending'
+  status: 'paid' | 'partial' | 'pending' | 'pay_tomorrow'
   delivery_count: number
 }
 

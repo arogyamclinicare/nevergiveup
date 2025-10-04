@@ -41,15 +41,15 @@ export default function ReportsScreen() {
       setLoading(true)
       setError(null)
 
-      // Get daily report summary
-      const { data: summaryData, error: summaryError } = await supabase.rpc('get_daily_report_summary', {
+      // Get daily report summary - use get_reports_daily_summary for historical data
+      const { data: summaryData, error: summaryError } = await supabase.rpc('get_reports_daily_summary', {
         p_date: selectedDate
       })
 
       if (summaryError) throw summaryError
 
-      // Get detailed shop data
-      const { data: collectionData, error: collectionError } = await supabase.rpc('get_collection_view', {
+      // Get detailed shop data - use get_reports_collection_view for historical data
+      const { data: collectionData, error: collectionError } = await supabase.rpc('get_reports_collection_view', {
         p_date: selectedDate
       })
 

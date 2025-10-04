@@ -5,7 +5,8 @@ export const ENV = {
   LOCKOUT_DURATION: 5 * 60 * 1000, // 5 minutes in milliseconds
   APP_NAME: 'Milk Delivery App',
   VERSION: '1.0.0',
-  ENVIRONMENT: 'production'
+  ENVIRONMENT: 'production',
+  DEFAULT_PIN: '6969'
 }
 
 // Get environment variables safely

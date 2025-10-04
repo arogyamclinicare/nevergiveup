@@ -19,16 +19,34 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
   const [pinError, setPinError] = useState('')
   
   // Default PIN from environment configuration
-  const DEFAULT_PIN = '1234' // This should be set securely in production
+  const DEFAULT_PIN = ENV.DEFAULT_PIN
   const [currentPin, setCurrentPin] = useState(DEFAULT_PIN)
 
   const handleResetSuccess = () => {
-    // Refresh the app or show success message
-    window.location.reload()
+    // Close the dialog and show success message
+    setShowResetDialog(false)
+    alert('Daily reset completed successfully! All deliveries have been archived.')
   }
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Input validation
+    if (!pin.trim()) {
+      setPinError('PIN is required.')
+      return
+    }
+    
+    if (pin.length < 4) {
+      setPinError('PIN must be at least 4 digits.')
+      return
+    }
+    
+    if (!/^\d+$/.test(pin)) {
+      setPinError('PIN must contain only numbers.')
+      return
+    }
+    
     if (pin === currentPin) {
       setIsAuthenticated(true)
       setShowPinDialog(false)
@@ -279,6 +297,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
       {/* Reset Dialog */}
       {showResetDialog && (
         <ResetDialog
+          isOpen={showResetDialog}
           onClose={() => setShowResetDialog(false)}
           onSuccess={handleResetSuccess}
         />

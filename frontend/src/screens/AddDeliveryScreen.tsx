@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, Shop, MilkType } from '../lib/supabase'
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus, Share2, MessageCircle, X } from 'lucide-react'
 
 interface AddDeliveryScreenProps {
   shop: Shop
@@ -22,6 +22,8 @@ export default function AddDeliveryScreen({ shop, onBack, onSuccess }: AddDelive
   const [error, setError] = useState<string | null>(null)
   const [deliveryBoyId, setDeliveryBoyId] = useState<string>('')
   const [deliveryBoys, setDeliveryBoys] = useState<any[]>([])
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [deliveryData, setDeliveryData] = useState<any>(null)
 
   useEffect(() => {
     fetchMilkTypes()
@@ -96,6 +98,63 @@ export default function AddDeliveryScreen({ shop, onBack, onSuccess }: AddDelive
     return products.reduce((sum, p) => sum + (p.price * p.quantity), 0)
   }
 
+  const generateWhatsAppMessage = (deliveryData: any) => {
+    const today = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+    
+    const selectedProducts = products.filter(p => p.quantity > 0)
+    const totalAmount = selectedProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0)
+    
+    let message = `🥛 *Milk Delivery Confirmation*\n\n`
+    message += `📅 *Date:* ${today}\n`
+    message += `🏪 *Shop:* ${shop.name}\n`
+    message += `👤 *Owner:* ${shop.owner_name || 'N/A'}\n`
+    message += `📞 *Phone:* ${shop.phone || 'N/A'}\n\n`
+    message += `📦 *Products Delivered:*\n`
+    
+    selectedProducts.forEach(product => {
+      message += `• ${product.name} x${product.quantity} = ₹${product.price * product.quantity}\n`
+    })
+    
+    message += `\n💰 *Total Amount:* ₹${totalAmount.toFixed(2)}\n`
+    message += `🚚 *Delivery Boy:* ${deliveryBoys.find(db => db.id === deliveryBoyId)?.name || 'N/A'}\n\n`
+    message += `Thank you for your business! 🙏`
+    
+    return message
+  }
+
+  const handleWhatsAppShare = () => {
+    const message = generateWhatsAppMessage(deliveryData)
+    // Remove all non-digits (including + sign)
+    let phoneNumber = shop.phone?.replace(/\D/g, '') || ''
+    
+    // If number starts with 0, remove it
+    if (phoneNumber.startsWith('0')) {
+      phoneNumber = phoneNumber.substring(1)
+    }
+    
+    // If number doesn't start with country code, add 91 (India)
+    if (!phoneNumber.startsWith('91') && phoneNumber.length === 10) {
+      phoneNumber = '91' + phoneNumber
+    }
+    
+    // Ensure we don't have any + signs
+    phoneNumber = phoneNumber.replace(/\+/g, '')
+    
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
+    setShowShareDialog(false)
+    onSuccess() // Close the screen after sharing
+  }
+
+  const handleSkipShare = () => {
+    setShowShareDialog(false)
+    onSuccess() // Close the screen without sharing
+  }
+
   const handleSave = async () => {
     // Validate at least one product selected
     const selectedProducts = products.filter(p => p.quantity > 0)
@@ -129,7 +188,19 @@ export default function AddDeliveryScreen({ shop, onBack, onSuccess }: AddDelive
       if (error) throw error
 
       if (data && data.success) {
-        onSuccess()
+        // Store delivery data for WhatsApp share
+        setDeliveryData({
+          selectedProducts,
+          deliveryBoyId,
+          shop
+        })
+        
+        // Show share dialog if shop has phone number
+        if (shop.phone) {
+          setShowShareDialog(true)
+        } else {
+          onSuccess()
+        }
       } else {
         throw new Error(data?.error || 'Failed to save delivery')
       }
@@ -275,6 +346,61 @@ export default function AddDeliveryScreen({ shop, onBack, onSuccess }: AddDelive
           </button>
         </div>
       </div>
+
+      {/* WhatsApp Share Dialog */}
+      {showShareDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center space-x-2">
+                <MessageCircle className="w-5 h-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Share Delivery Details</h3>
+              </div>
+              <button
+                onClick={() => setShowShareDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="text-center mb-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <MessageCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Share with {shop.name}</h4>
+                <p className="text-sm text-gray-600">
+                  Send delivery confirmation via WhatsApp to {shop.phone}
+                </p>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <p className="text-sm text-gray-700 font-medium mb-2">Message Preview:</p>
+                <div className="text-xs text-gray-600 bg-white rounded p-2 max-h-32 overflow-y-auto">
+                  {deliveryData && generateWhatsAppMessage(deliveryData)}
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleSkipShare}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share on WhatsApp</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

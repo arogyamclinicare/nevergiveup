@@ -38,7 +38,8 @@ export default function ShopDetailScreen({ shopId, date, onBack }: ShopDetailScr
       setLoading(true)
       setError(null)
 
-      const { data, error } = await supabase.rpc('get_shop_detail_view', {
+      // Use reports function for historical data (includes archived deliveries)
+      const { data, error } = await supabase.rpc('get_reports_shop_detail_view', {
         p_shop_id: shopId,
         p_date: date
       })

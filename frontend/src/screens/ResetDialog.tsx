@@ -25,6 +25,7 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+
   useEffect(() => {
     if (isOpen) {
       fetchResetPreview()
@@ -57,10 +58,10 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
     try {
       setProcessing(true)
       setError(null)
-      console.log('Starting reset process...')
+      console.log('🔄 Starting reset process...')
 
       const today = new Date().toISOString().split('T')[0]
-      console.log('Reset date:', today)
+      console.log('📅 Reset date:', today)
 
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 
@@ -71,36 +72,36 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
         p_date: today
       })
 
-      console.log('Calling process_daily_reset with date:', today)
+      console.log('🚀 Calling process_daily_reset with date:', today)
       const result = await Promise.race([resetPromise, timeoutPromise]) as any
       const { data, error } = result
 
-      console.log('Reset response:', { data, error })
+      console.log('📊 Reset response:', { data, error })
 
       if (error) {
         console.error('Reset error:', error)
         throw error
       }
 
-      // Check if the response contains success information
-      if (data && data.length > 0 && data[0]?.success) {
+      // Handle the response - data is a single object, not an array
+      if (data && data.success) {
         console.log('Reset successful:', data)
         setSuccess(true)
         setTimeout(() => {
           onSuccess()
           onClose()
-        }, 2000)
-      } else if (data && data.length > 0 && data[0]?.message) {
+        }, 1500)
+      } else if (data && data.message) {
         // Handle case where function returns a message
-        console.log('Reset successful:', data[0])
+        console.log('Reset successful:', data)
         setSuccess(true)
         setTimeout(() => {
           onSuccess()
           onClose()
-        }, 2000)
+        }, 1500)
       } else {
         console.error('Reset failed:', data)
-        throw new Error(data?.[0]?.error || 'Reset failed')
+        throw new Error(data?.error || 'Reset failed')
       }
     } catch (err: any) {
       console.error('Error processing reset:', err)
@@ -119,9 +120,8 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
   }
 
   if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ zIndex: 9999 }}>
       <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">

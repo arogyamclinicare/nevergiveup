@@ -29,8 +29,8 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
       setLoading(true)
       setError(null)
       
-      // Use collection view function (combines today's + historical pending)
-      const functionName = 'get_collection_view'
+      // Use today collection view function (shows today's active deliveries)
+      const functionName = 'get_today_collection_view'
       
       const { data, error } = await supabase.rpc(functionName, {
         p_date: new Date().toISOString().split('T')[0] // Today's date
@@ -207,7 +207,11 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
               </div>
               <div className="text-right">
                 <div className="text-lg font-bold text-gray-900">
-                  ₹{Number(shop.total_pending).toFixed(2)}
+                  {shop.status === 'paid' ? (
+                    <span className="text-green-600">₹{Number(shop.today_paid).toFixed(2)}</span>
+                  ) : (
+                    <span>₹{Number(shop.total_pending).toFixed(2)}</span>
+                  )}
                 </div>
                 {showPendingOnly ? (
                   <>
@@ -229,20 +233,28 @@ export default function CollectionScreen({ onSelectShop, refreshTrigger }: Colle
                   </>
                 ) : (
                   <>
-                    {shop.today_pending > 0 && (
-                      <div className="text-xs text-gray-600">
-                        Today: ₹{Number(shop.today_pending).toFixed(2)}
+                    {shop.status === 'paid' ? (
+                      <div className="text-xs text-green-600">
+                        Paid: ₹{Number(shop.today_paid).toFixed(2)}
                       </div>
-                    )}
-                    {shop.old_pending > 0 && (
-                      <div className="text-xs text-gray-600">
-                        Old: ₹{Number(shop.old_pending).toFixed(2)}
-                      </div>
-                    )}
-                    {(Number(shop.total_pending) - Number(shop.today_pending) - Number(shop.old_pending)) > 0 && (
-                      <div className="text-xs text-orange-600">
-                        History: ₹{(Number(shop.total_pending) - Number(shop.today_pending) - Number(shop.old_pending)).toFixed(2)}
-                      </div>
+                    ) : (
+                      <>
+                        {shop.today_pending > 0 && (
+                          <div className="text-xs text-gray-600">
+                            Today: ₹{Number(shop.today_pending).toFixed(2)}
+                          </div>
+                        )}
+                        {shop.old_pending > 0 && (
+                          <div className="text-xs text-gray-600">
+                            Old: ₹{Number(shop.old_pending).toFixed(2)}
+                          </div>
+                        )}
+                        {(Number(shop.total_pending) - Number(shop.today_pending) - Number(shop.old_pending)) > 0 && (
+                          <div className="text-xs text-orange-600">
+                            History: ₹{(Number(shop.total_pending) - Number(shop.today_pending) - Number(shop.old_pending)).toFixed(2)}
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}

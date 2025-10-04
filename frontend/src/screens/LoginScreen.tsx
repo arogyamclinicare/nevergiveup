@@ -18,6 +18,27 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Input validation
+    if (!username.trim()) {
+      setError('Username is required.')
+      return
+    }
+    
+    if (!password.trim()) {
+      setError('Password is required.')
+      return
+    }
+    
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters.')
+      return
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+    
     // Check if account is locked
     if (isLocked) {
       setError('Account is temporarily locked. Please try again later.')

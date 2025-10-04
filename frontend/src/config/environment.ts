@@ -6,7 +6,7 @@ export const ENV = {
   APP_NAME: 'Milk Delivery App',
   VERSION: '1.0.0',
   ENVIRONMENT: 'production',
-  DEFAULT_PIN: '6969'
+  DEFAULT_PIN: import.meta.env.VITE_REACT_APP_DEFAULT_PIN || '1234'
 }
 
 // Get environment variables safely

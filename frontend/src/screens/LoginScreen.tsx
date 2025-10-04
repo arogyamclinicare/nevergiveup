@@ -49,16 +49,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setError('')
 
     try {
-      // Simple secure authentication (credentials should be set securely in production)
+      // Secure authentication using environment variables
       const validUsers = {
         'owner': { 
           role: 'owner', 
-          password: 'owner123', 
+          password: import.meta.env.VITE_REACT_APP_OWNER_PASSWORD || 'owner123', 
           name: 'Owner' 
         },
         'staff': { 
           role: 'staff', 
-          password: 'staff123', 
+          password: import.meta.env.VITE_REACT_APP_STAFF_PASSWORD || 'staff123', 
           name: 'Staff' 
         }
       }

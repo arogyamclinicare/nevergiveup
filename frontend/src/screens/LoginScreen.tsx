@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Eye, EyeOff, Shield, User, AlertCircle } from 'lucide-react'
+import { ENV } from '../config/environment'
 
 interface LoginScreenProps {
   onLoginSuccess: (user: any, role: string) => void
@@ -11,23 +12,54 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [loginAttempts, setLoginAttempts] = useState(0)
+  const [isLocked, setIsLocked] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check if account is locked
+    if (isLocked) {
+      setError('Account is temporarily locked. Please try again later.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
     try {
-      // Simple secure authentication - no database needed
+      // Simple secure authentication (credentials should be set securely in production)
       const validUsers = {
-        'owner': { role: 'owner', password: 'owner123', name: 'Owner' },
-        'staff': { role: 'staff', password: 'staff123', name: 'Staff' }
+        'owner': { 
+          role: 'owner', 
+          password: 'owner123', 
+          name: 'Owner' 
+        },
+        'staff': { 
+          role: 'staff', 
+          password: 'staff123', 
+          name: 'Staff' 
+        }
       }
 
       const userData = validUsers[username as keyof typeof validUsers]
       
       if (!userData || userData.password !== password) {
-        throw new Error('Invalid username or password')
+        const newAttempts = loginAttempts + 1
+        setLoginAttempts(newAttempts)
+        
+        const maxAttempts = ENV.MAX_LOGIN_ATTEMPTS
+        if (newAttempts >= maxAttempts) {
+          setIsLocked(true)
+          const lockoutDuration = ENV.LOCKOUT_DURATION
+          setTimeout(() => {
+            setIsLocked(false)
+            setLoginAttempts(0)
+          }, lockoutDuration)
+          throw new Error(`Too many failed attempts. Account locked for ${lockoutDuration / 60000} minutes.`)
+        }
+        
+        throw new Error(`Invalid username or password. ${maxAttempts - newAttempts} attempts remaining.`)
       }
 
       // Create user object
@@ -38,6 +70,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         role: userData.role
       }
 
+      // Reset login attempts on successful login
+      setLoginAttempts(0)
       console.log('Login successful:', { username, role: userData.role })
       onLoginSuccess(user, userData.role)
       
@@ -82,6 +116,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 placeholder="owner or staff"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
                 required
               />
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -100,6 +135,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
               <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -115,7 +151,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || isLocked}
             className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
           >
             {loading ? (
@@ -123,26 +159,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Signing in...
               </>
+            ) : isLocked ? (
+              'Account Locked'
             ) : (
               'Sign In'
             )}
           </button>
         </form>
 
-        {/* Login Options */}
-        <div className="mt-6 space-y-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Owner Access</h3>
-            <p className="text-xs text-blue-600">Username: <strong>owner</strong></p>
-            <p className="text-xs text-blue-600">Password: <strong>owner123</strong></p>
-          </div>
-          
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-green-800 mb-2">Staff Access</h3>
-            <p className="text-xs text-green-600">Username: <strong>staff</strong></p>
-            <p className="text-xs text-green-600">Password: <strong>staff123</strong></p>
-          </div>
-        </div>
       </div>
     </div>
   )

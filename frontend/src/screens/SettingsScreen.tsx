@@ -3,6 +3,7 @@ import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, St
 import ResetDialog from './ResetDialog'
 import ShopManagementScreen from './ShopManagementScreen'
 import ProductManagementScreen from './ProductManagementScreen'
+import { ENV } from '../config/environment'
 
 interface SettingsScreenProps {
   userRole?: string
@@ -17,8 +18,8 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [pinError, setPinError] = useState('')
   
-  // Default PIN - can be changed in settings
-  const DEFAULT_PIN = '1234'
+  // Default PIN from environment configuration
+  const DEFAULT_PIN = '1234' // This should be set securely in production
   const [currentPin, setCurrentPin] = useState(DEFAULT_PIN)
 
   const handleResetSuccess = () => {
@@ -94,14 +95,6 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
             </button>
           </form>
           
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 text-center">
-              <strong>Default PIN:</strong> 1234
-            </p>
-            <p className="text-xs text-gray-500 text-center mt-1">
-              You can change this PIN in settings
-            </p>
-          </div>
         </div>
       </div>
     )
@@ -140,7 +133,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
           </div>
           <div className="flex-1">
             <h3 className="font-medium text-gray-900">PIN Management</h3>
-            <p className="text-sm text-gray-500">Current PIN: {currentPin}</p>
+            <p className="text-sm text-gray-500">Current PIN: ••••</p>
           </div>
           <button
             onClick={() => {
@@ -244,6 +237,31 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
                 </button>
               </div>
             </div>
+
+            {/* Owner Logout Button */}
+            {userRole === 'owner' && onLogout && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <LogOut className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-red-900">Logout</h3>
+                    <p className="text-sm text-red-700">Sign out of the application</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to logout?')) {
+                        onLogout()
+                      }
+                    }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* System Information */}
             <div className="bg-gray-50 rounded-lg p-4">

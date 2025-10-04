@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import AppLayout from './components/Layout/AppLayout'
 import BottomNav from './components/Layout/BottomNav'
 import LoginScreen from './screens/LoginScreen'
@@ -10,6 +10,7 @@ import PaymentModal from './screens/PaymentModal'
 import ReportsScreen from './screens/ReportsScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import { Shop, CollectionViewRow } from './lib/supabase'
+import { SessionManager } from './utils/sessionManager'
 
 type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
 type DeliveryView = 'shop-list' | 'add-delivery'
@@ -28,11 +29,33 @@ function App() {
   const [userRole, setUserRole] = useState<string>('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
+  // Initialize session on app start
+  useEffect(() => {
+    const session = SessionManager.getSession()
+    if (session) {
+      setUser(session.user)
+      setUserRole(session.role)
+      setIsAuthenticated(true)
+    }
+  }, [])
+
+  // Session timeout watcher
+  useEffect(() => {
+    if (isAuthenticated) {
+      const cleanup = SessionManager.startSessionWatcher(() => {
+        handleLogout()
+        alert('Session expired. Please login again.')
+      })
+      return cleanup
+    }
+  }, [isAuthenticated])
+
   // Authentication handlers
   const handleLoginSuccess = (user: any, role: string) => {
     setUser(user)
     setUserRole(role)
     setIsAuthenticated(true)
+    SessionManager.setSession(user, role)
   }
 
   const handleLogout = () => {
@@ -40,6 +63,7 @@ function App() {
     setUserRole('')
     setIsAuthenticated(false)
     setActiveTab('home')
+    SessionManager.clearSession()
   }
 
   const handleSelectShop = (shop: Shop) => {

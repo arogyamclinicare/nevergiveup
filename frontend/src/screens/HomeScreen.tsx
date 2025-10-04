@@ -33,7 +33,7 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
       // Get today's deliveries
       const { data: deliveries } = await supabase
         .from('deliveries')
-        .select('total_amount, payment_amount, delivery_status')
+        .select('shop_id, total_amount, payment_amount, delivery_status')
         .eq('delivery_date', today)
         .eq('is_archived', false)
 
@@ -46,6 +46,7 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
       // Get collection data
       const { data: collectionData } = await supabase
         .rpc('get_collection_view', { p_date: today })
+
 
       const delivered = deliveries?.reduce((sum, d) => sum + (d.delivery_status === 'delivered' ? Number(d.total_amount) : 0), 0) || 0
       const collected = deliveries?.reduce((sum, d) => sum + Number(d.payment_amount), 0) || 0

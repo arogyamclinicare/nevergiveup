@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertTriangle, CheckCircle, Clock, DollarSign, Archive, X } from 'lucide-react'
 
@@ -59,16 +59,21 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
       setError(null)
       console.log('Starting reset process...')
 
+      const today = new Date().toISOString().split('T')[0]
+      console.log('Reset date:', today)
+
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Reset timeout - operation took too long')), 30000)
       )
 
       const resetPromise = supabase.rpc('process_daily_reset', {
-        p_date: new Date().toISOString().split('T')[0]
+        p_date: today
       })
 
-      const { data, error } = await Promise.race([resetPromise, timeoutPromise])
+      console.log('Calling process_daily_reset with date:', today)
+      const result = await Promise.race([resetPromise, timeoutPromise]) as any
+      const { data, error } = result
 
       console.log('Reset response:', { data, error })
 
@@ -77,8 +82,17 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
         throw error
       }
 
-      if (data && data.success) {
+      // Check if the response contains success information
+      if (data && data.length > 0 && data[0]?.success) {
         console.log('Reset successful:', data)
+        setSuccess(true)
+        setTimeout(() => {
+          onSuccess()
+          onClose()
+        }, 2000)
+      } else if (data && data.length > 0 && data[0]?.message) {
+        // Handle case where function returns a message
+        console.log('Reset successful:', data[0])
         setSuccess(true)
         setTimeout(() => {
           onSuccess()
@@ -86,7 +100,7 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
         }, 2000)
       } else {
         console.error('Reset failed:', data)
-        throw new Error(data?.error || 'Reset failed')
+        throw new Error(data?.[0]?.error || 'Reset failed')
       }
     } catch (err: any) {
       console.error('Error processing reset:', err)
@@ -244,7 +258,7 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
               </button>
               <button
                 onClick={handleReset}
-                disabled={!previewData || processing || previewData.total_deliveries === 0}
+                disabled={processing}
                 className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
                 {processing ? (

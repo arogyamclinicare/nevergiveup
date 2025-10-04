@@ -95,6 +95,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-center text-lg tracking-widest"
                 placeholder="••••"
                 maxLength={6}
+                autoComplete="new-password"
                 required
               />
             </div>

@@ -157,7 +157,7 @@ export default function DeliveryScreen({ onSelectShop, refreshTrigger }: Deliver
                     <h3 className="font-semibold text-gray-900">{shop.name}</h3>
                     {shop.route_number && (
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                        {shop.route_number}
+                        Route {shop.route_number.toString().padStart(2, '0')}
                       </span>
                     )}
                   </div>

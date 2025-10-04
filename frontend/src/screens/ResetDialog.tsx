@@ -72,39 +72,43 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
         p_date: today
       })
 
-      console.log('🚀 Calling process_daily_reset with date:', today)
+      // Processing daily reset
       const result = await Promise.race([resetPromise, timeoutPromise]) as any
       const { data, error } = result
 
-      console.log('📊 Reset response:', { data, error })
+      // Processing reset response
 
       if (error) {
-        console.error('Reset error:', error)
+        // Reset error handled
         throw error
       }
 
       // Handle the response - data is a single object, not an array
       if (data && data.success) {
-        console.log('Reset successful:', data)
         setSuccess(true)
-        setTimeout(() => {
-          onSuccess()
-          onClose()
-        }, 1500)
+        // Use requestAnimationFrame for better performance
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            onSuccess()
+            onClose()
+          }, 1500)
+        })
       } else if (data && data.message) {
         // Handle case where function returns a message
-        console.log('Reset successful:', data)
         setSuccess(true)
-        setTimeout(() => {
-          onSuccess()
-          onClose()
-        }, 1500)
+        // Use requestAnimationFrame for better performance
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            onSuccess()
+            onClose()
+          }, 1500)
+        })
       } else {
-        console.error('Reset failed:', data)
+        // Reset failed
         throw new Error(data?.error || 'Reset failed')
       }
     } catch (err: any) {
-      console.error('Error processing reset:', err)
+      // Error processing reset
       setError(err.message || 'Failed to process reset')
     } finally {
       setProcessing(false)

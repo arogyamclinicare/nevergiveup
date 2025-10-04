@@ -1,0 +1,72 @@
+{
+  "environmentVariables": {
+    "production": {
+      "VITE_REACT_APP_SUPABASE_URL": "https://cqltkqwxbtbnunaiknau.supabase.co",
+      "VITE_REACT_APP_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxbHRrcXd4YnRibnVuYWlrbmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyMzk0MTMsImV4cCI6MjA3NDgxNTQxM30.E2PdfGDzzLOpKUVt38DW1ojugqtMhAdMIq0lAMB2lsY",
+      "VITE_REACT_APP_OWNER_USERNAME": "CHANGE_THIS_USERNAME",
+      "VITE_REACT_APP_OWNER_PASSWORD": "CHANGE_THIS_PASSWORD",
+      "VITE_REACT_APP_STAFF_USERNAME": "CHANGE_THIS_STAFF_USERNAME",
+      "VITE_REACT_APP_STAFF_PASSWORD": "CHANGE_THIS_STAFF_PASSWORD",
+      "VITE_REACT_APP_DEFAULT_PIN": "CHANGE_THIS_PIN",
+      "VITE_REACT_APP_SESSION_TIMEOUT": "1800000",
+      "VITE_REACT_APP_MAX_LOGIN_ATTEMPTS": "3",
+      "VITE_REACT_APP_LOCKOUT_DURATION": "300000",
+      "VITE_REACT_APP_APP_NAME": "Milk Delivery App",
+      "VITE_REACT_APP_VERSION": "1.0.0",
+      "VITE_REACT_APP_ENVIRONMENT": "production"
+    },
+    "preview": {
+      "VITE_REACT_APP_SUPABASE_URL": "https://cqltkqwxbtbnunaiknau.supabase.co",
+      "VITE_REACT_APP_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxbHRrcXd4YnRibnVuYWlrbmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyMzk0MTMsImV4cCI6MjA3NDgxNTQxM30.E2PdfGDzzLOpKUVt38DW1ojugqtMhAdMIq0lAMB2lsY",
+      "VITE_REACT_APP_OWNER_USERNAME": "preview_owner",
+      "VITE_REACT_APP_OWNER_PASSWORD": "preview_owner123",
+      "VITE_REACT_APP_STAFF_USERNAME": "preview_staff",
+      "VITE_REACT_APP_STAFF_PASSWORD": "preview_staff123",
+      "VITE_REACT_APP_DEFAULT_PIN": "1234",
+      "VITE_REACT_APP_SESSION_TIMEOUT": "1800000",
+      "VITE_REACT_APP_MAX_LOGIN_ATTEMPTS": "3",
+      "VITE_REACT_APP_LOCKOUT_DURATION": "300000",
+      "VITE_REACT_APP_APP_NAME": "Milk Delivery App (Preview)",
+      "VITE_REACT_APP_VERSION": "1.0.0",
+      "VITE_REACT_APP_ENVIRONMENT": "preview"
+    },
+    "development": {
+      "VITE_REACT_APP_SUPABASE_URL": "https://cqltkqwxbtbnunaiknau.supabase.co",
+      "VITE_REACT_APP_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxbHRrcXd4YnRibnVuYWlrbmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyMzk0MTMsImV4cCI6MjA3NDgxNTQxM30.E2PdfGDzzLOpKUVt38DW1ojugqtMhAdMIq0lAMB2lsY",
+      "VITE_REACT_APP_OWNER_USERNAME": "owner",
+      "VITE_REACT_APP_OWNER_PASSWORD": "owner123",
+      "VITE_REACT_APP_STAFF_USERNAME": "staff",
+      "VITE_REACT_APP_STAFF_PASSWORD": "staff123",
+      "VITE_REACT_APP_DEFAULT_PIN": "6969",
+      "VITE_REACT_APP_SESSION_TIMEOUT": "1800000",
+      "VITE_REACT_APP_MAX_LOGIN_ATTEMPTS": "3",
+      "VITE_REACT_APP_LOCKOUT_DURATION": "300000",
+      "VITE_REACT_APP_APP_NAME": "Milk Delivery App",
+      "VITE_REACT_APP_VERSION": "1.0.0",
+      "VITE_REACT_APP_ENVIRONMENT": "development"
+    }
+  },
+  "instructions": {
+    "setup": [
+      "1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables",
+      "2. For each variable below, click 'Add New' and enter the name and value",
+      "3. Select the appropriate environment (Production, Preview, Development, or All)",
+      "4. Click 'Save' for each variable",
+      "5. Redeploy your project to apply changes"
+    ],
+    "security": [
+      "⚠️  IMPORTANT: Change all 'CHANGE_THIS_*' values to secure credentials",
+      "🔐 Use strong passwords (12+ characters, mixed case, numbers, symbols)",
+      "🔑 Use unique PINs (avoid 1234, 6969, etc.)",
+      "🚫 Never use default credentials in production",
+      "🔄 Consider rotating credentials regularly"
+    ],
+    "verification": [
+      "✅ Test login with owner credentials",
+      "✅ Test login with staff credentials", 
+      "✅ Test settings PIN access",
+      "✅ Verify all features work correctly",
+      "✅ Check browser console for errors"
+    ]
+  }
+}

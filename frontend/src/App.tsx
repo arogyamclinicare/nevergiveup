@@ -1,69 +1,71 @@
 import React, { useState, useEffect } from 'react'
+import { AppProvider, useApp, useAppActions } from './context/AppContext'
 import AppLayout from './components/Layout/AppLayout'
 import BottomNav from './components/Layout/BottomNav'
+import NotificationSystem from './components/NotificationSystem'
 import LoginScreen from './screens/LoginScreen'
-import HomeScreen from './screens/HomeScreen'
-import DeliveryScreen from './screens/DeliveryScreen'
-import AddDeliveryScreen from './screens/AddDeliveryScreen'
-import CollectionScreen from './screens/CollectionScreen'
+import { 
+  HomeScreen, 
+  DeliveryScreen, 
+  CollectionScreen, 
+  ReportsScreen, 
+  SettingsScreen,
+  AddDeliveryScreen,
+  ShopDetailScreen
+} from './components/lazy/LazyScreens'
 import PaymentModal from './screens/PaymentModal'
-import ReportsScreen from './screens/ReportsScreen'
-import SettingsScreen from './screens/SettingsScreen'
 import { Shop, CollectionViewRow } from './lib/supabase'
 import { SessionManager } from './utils/sessionManager'
 
 type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
 type DeliveryView = 'shop-list' | 'add-delivery'
 
-function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('home')
+function AppContent() {
+  const { state } = useApp()
+  const { setActiveTab, setUser, setAuthenticated, addNotification, triggerRefresh } = useAppActions()
+  
   const [deliveryView, setDeliveryView] = useState<DeliveryView>('shop-list')
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [selectedCollectionShop, setSelectedCollectionShop] = useState<CollectionViewRow | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [collectionRefreshTrigger, setCollectionRefreshTrigger] = useState(0)
-  const [deliveryRefreshTrigger, setDeliveryRefreshTrigger] = useState(0)
-  
-  // Authentication state
-  const [user, setUser] = useState<any>(null)
-  const [userRole, setUserRole] = useState<string>('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-
-  // Initialize session on app start
-  useEffect(() => {
-    const session = SessionManager.getSession()
-    if (session) {
-      setUser(session.user)
-      setUserRole(session.role)
-      setIsAuthenticated(true)
-    }
-  }, [])
 
   // Session timeout watcher
   useEffect(() => {
-    if (isAuthenticated) {
+    if (state.isAuthenticated) {
       const cleanup = SessionManager.startSessionWatcher(() => {
         handleLogout()
-        alert('Session expired. Please login again.')
+        addNotification({
+          type: 'warning',
+          message: 'Session expired. Please login again.',
+          autoHide: true
+        })
       })
       return cleanup
     }
-  }, [isAuthenticated])
+  }, [state.isAuthenticated])
 
   // Authentication handlers
   const handleLoginSuccess = (user: any, role: string) => {
     setUser(user)
-    setUserRole(role)
-    setIsAuthenticated(true)
+    setAuthenticated(true)
     SessionManager.setSession(user, role)
+    addNotification({
+      type: 'success',
+      message: `Welcome back, ${user.name}!`,
+      autoHide: true
+    })
   }
 
   const handleLogout = () => {
     setUser(null)
-    setUserRole('')
-    setIsAuthenticated(false)
+    setAuthenticated(false)
     setActiveTab('home')
     SessionManager.clearSession()
+    addNotification({
+      type: 'info',
+      message: 'Logged out successfully',
+      autoHide: true
+    })
   }
 
   const handleSelectShop = (shop: Shop) => {
@@ -77,12 +79,14 @@ function App() {
   }
 
   const handleDeliverySaved = () => {
-    setSuccessMessage('✅ Delivery saved successfully!')
+    addNotification({
+      type: 'success',
+      message: 'Delivery saved successfully!',
+      autoHide: true
+    })
     setSelectedShop(null)
     setDeliveryView('shop-list')
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => setSuccessMessage(null), 3000)
+    triggerRefresh('delivery')
   }
 
   const handleSelectCollectionShop = (shop: CollectionViewRow) => {
@@ -90,28 +94,27 @@ function App() {
   }
 
   const handlePaymentSuccess = () => {
-    setSuccessMessage('✅ Payment processed successfully!')
+    addNotification({
+      type: 'success',
+      message: 'Payment processed successfully!',
+      autoHide: true
+    })
     setSelectedCollectionShop(null)
-    
-    // Trigger collection view refresh
-    setCollectionRefreshTrigger(prev => prev + 1)
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => setSuccessMessage(null), 3000)
+    triggerRefresh('collection')
   }
 
 
   const renderContent = () => {
     // Delivery Tab Logic
-    if (activeTab === 'delivery') {
+    if (state.activeTab === 'delivery') {
       if (deliveryView === 'add-delivery' && selectedShop) {
         return (
           <AppLayout 
             title={`Add Delivery`}
             showBackButton
             onBack={handleBackToShopList}
-              showLogoutButton={userRole === 'staff'}
-              onLogout={handleLogout}
+            showLogoutButton={state.user?.role === 'staff'}
+            onLogout={handleLogout}
           >
             <AddDeliveryScreen
               shop={selectedShop}
@@ -122,56 +125,66 @@ function App() {
         )
       }
       
-        return (
-          <AppLayout title="Delivery" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
-          {successMessage && (
-            <div className="mx-4 mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm text-green-800 font-medium">{successMessage}</p>
-            </div>
-          )}
+      return (
+        <AppLayout 
+          title="Delivery" 
+          showLogoutButton={state.user?.role === 'staff'} 
+          onLogout={handleLogout}
+        >
           <DeliveryScreen 
             onSelectShop={handleSelectShop} 
-            refreshTrigger={deliveryRefreshTrigger}
+            refreshTrigger={state.refreshTriggers.delivery}
           />
         </AppLayout>
       )
     }
 
     // Other Tabs
-    switch (activeTab) {
+    switch (state.activeTab) {
       case 'home':
         return (
-          <AppLayout title="Milk Delivery App" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
+          <AppLayout 
+            title="Milk Delivery App" 
+            showLogoutButton={state.user?.role === 'staff'} 
+            onLogout={handleLogout}
+          >
             <HomeScreen 
-              onDeliveryRefresh={() => setDeliveryRefreshTrigger(prev => prev + 1)}
-              onCollectionRefresh={() => setCollectionRefreshTrigger(prev => prev + 1)}
+              onDeliveryRefresh={() => triggerRefresh('delivery')}
+              onCollectionRefresh={() => triggerRefresh('collection')}
             />
           </AppLayout>
         )
       case 'collection':
         return (
-          <AppLayout title="Collection" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
-            {successMessage && (
-              <div className="mx-4 mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-800 font-medium">{successMessage}</p>
-              </div>
-            )}
+          <AppLayout 
+            title="Collection" 
+            showLogoutButton={state.user?.role === 'staff'} 
+            onLogout={handleLogout}
+          >
             <CollectionScreen 
               onSelectShop={handleSelectCollectionShop} 
-              refreshTrigger={collectionRefreshTrigger}
+              refreshTrigger={state.refreshTriggers.collection}
             />
           </AppLayout>
         )
       case 'reports':
         return (
-          <AppLayout title="Reports" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
+          <AppLayout 
+            title="Reports" 
+            showLogoutButton={state.user?.role === 'staff'} 
+            onLogout={handleLogout}
+          >
             <ReportsScreen />
           </AppLayout>
         )
       case 'settings':
         return (
-          <AppLayout title="Settings" showLogoutButton={userRole === 'staff'} onLogout={handleLogout}>
-            <SettingsScreen userRole={userRole} onLogout={handleLogout} />
+          <AppLayout 
+            title="Settings" 
+            showLogoutButton={state.user?.role === 'staff'} 
+            onLogout={handleLogout}
+          >
+            <SettingsScreen userRole={state.user?.role} onLogout={handleLogout} />
           </AppLayout>
         )
       default:
@@ -180,7 +193,7 @@ function App() {
   }
 
   // Show login screen if not authenticated
-  if (!isAuthenticated) {
+  if (!state.isAuthenticated) {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />
   }
 
@@ -188,9 +201,9 @@ function App() {
     <div className="h-screen overflow-hidden">
       {renderContent()}
       <BottomNav 
-        activeTab={activeTab} 
+        activeTab={state.activeTab} 
         onTabChange={setActiveTab}
-        userRole={userRole}
+        userRole={state.user?.role}
         onLogout={handleLogout}
       />
       
@@ -202,7 +215,18 @@ function App() {
           onSuccess={handlePaymentSuccess}
         />
       )}
+      
+      {/* Notification System */}
+      <NotificationSystem />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
   )
 }
 

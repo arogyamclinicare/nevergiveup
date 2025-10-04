@@ -212,7 +212,7 @@ export default function PerformanceMonitor() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
           <Clock className="w-5 h-5" />
-          <span>Slow Queries (>1000ms)</span>
+          <span>Slow Queries (&gt;1000ms)</span>
         </h3>
         {metrics.slowQueries.length > 0 ? (
           <div className="space-y-4">

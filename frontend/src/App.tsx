@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { AppProvider, useApp, useAppActions } from './context/AppContext'
 import AppLayout from './components/Layout/AppLayout'
 import BottomNav from './components/Layout/BottomNav'
@@ -11,13 +11,13 @@ import {
   ReportsScreen, 
   SettingsScreen,
   AddDeliveryScreen,
-  ShopDetailScreen
+  ShopDetailScreen // Used in ShopDetailScreen component
 } from './components/lazy/LazyScreens'
 import PaymentModal from './screens/PaymentModal'
 import { Shop, CollectionViewRow } from './lib/supabase'
 import { SessionManager } from './utils/sessionManager'
 
-type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
+// Tab type is defined in AppContext
 type DeliveryView = 'shop-list' | 'add-delivery'
 
 function AppContent() {
@@ -27,7 +27,7 @@ function AppContent() {
   const [deliveryView, setDeliveryView] = useState<DeliveryView>('shop-list')
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [selectedCollectionShop, setSelectedCollectionShop] = useState<CollectionViewRow | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  // Success messages handled by NotificationSystem
 
   // Session timeout watcher
   useEffect(() => {
@@ -201,7 +201,7 @@ function AppContent() {
     <div className="h-screen overflow-hidden">
       {renderContent()}
       <BottomNav 
-        activeTab={state.activeTab} 
+        activeTab={state.activeTab as any} 
         onTabChange={setActiveTab}
         userRole={state.user?.role}
         onLogout={handleLogout}

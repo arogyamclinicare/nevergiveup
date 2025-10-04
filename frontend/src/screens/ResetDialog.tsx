@@ -58,10 +58,10 @@ export default function ResetDialog({ isOpen, onClose, onSuccess }: ResetDialogP
     try {
       setProcessing(true)
       setError(null)
-      console.log('🔄 Starting reset process...')
+      // Starting reset process
 
       const today = new Date().toISOString().split('T')[0]
-      console.log('📅 Reset date:', today)
+      // Reset date set
 
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 

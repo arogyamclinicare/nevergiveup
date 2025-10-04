@@ -214,7 +214,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
           <button
             onClick={() => setActiveTab('shops')}
             className={`flex-1 p-3 text-sm font-medium ${
-              activeTab === 'shops' 
+              (activeTab as string) === 'shops' 
                 ? 'text-blue-600 border-b-2 border-blue-600' 
                 : 'text-gray-600 hover:text-gray-900'
             }`}
@@ -225,7 +225,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
           <button
             onClick={() => setActiveTab('products')}
             className={`flex-1 p-3 text-sm font-medium ${
-              activeTab === 'products' 
+              (activeTab as string) === 'products' 
                 ? 'text-blue-600 border-b-2 border-blue-600' 
                 : 'text-gray-600 hover:text-gray-900'
             }`}

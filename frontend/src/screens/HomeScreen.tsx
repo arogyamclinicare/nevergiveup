@@ -16,6 +16,7 @@ interface RouteStats {
 }
 
 export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: HomeScreenProps) {
+  // Props are used in useEffect dependencies
   const [routeStats, setRouteStats] = useState<RouteStats>({
     delivered: 0,
     collected: 0,
@@ -50,7 +51,7 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
 
       const delivered = deliveries?.reduce((sum, d) => sum + Number(d.total_amount), 0) || 0
       const collected = deliveries?.reduce((sum, d) => sum + Number(d.payment_amount), 0) || 0
-      const pending = collectionData?.reduce((sum, c) => sum + Number(c.total_pending), 0) || 0
+      const pending = collectionData?.reduce((sum: number, c: any) => sum + Number(c.total_pending), 0) || 0
       // Count shops that have any deliveries (regardless of status) as visited
       const shopsVisited = new Set(deliveries?.map(d => d.shop_id) || []).size
       const totalShops = shops?.length || 0

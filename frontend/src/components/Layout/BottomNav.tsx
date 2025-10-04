@@ -1,5 +1,4 @@
-import React from 'react'
-import { Home, Truck, DollarSign, BarChart3, Settings, LogOut } from 'lucide-react'
+import { Home, Truck, DollarSign, BarChart3, Settings } from 'lucide-react'
 
 type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
 
@@ -10,7 +9,7 @@ interface BottomNavProps {
   onLogout?: () => void
 }
 
-export default function BottomNav({ activeTab, onTabChange, userRole, onLogout }: BottomNavProps) {
+export default function BottomNav({ activeTab, onTabChange, userRole }: BottomNavProps) {
   // Role-based navigation
   const getTabsForRole = (role: string) => {
     const allTabs = [

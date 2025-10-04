@@ -93,11 +93,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
       // Reset login attempts on successful login
       setLoginAttempts(0)
-      console.log('Login successful:', { username, role: userData.role })
+      // Login successful
       onLoginSuccess(user, userData.role)
       
     } catch (err: any) {
-      console.error('Login error:', err)
+      // Login error handled
       setError(err.message || 'Login failed. Please check your credentials.')
     } finally {
       setLoading(false)

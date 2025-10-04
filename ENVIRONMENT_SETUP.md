@@ -7,17 +7,17 @@ Create `frontend/.env.local` with the following content:
 
 ```bash
 # Supabase Configuration
-VITE_REACT_APP_SUPABASE_URL=https://cqltkqwxbtbnunaiknau.supabase.co
-VITE_REACT_APP_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxbHRrcXd4YnRibnVuYWlrbmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyMzk0MTMsImV4cCI6MjA3NDgxNTQxM30.E2PdfGDzzLOpKUVt38DW1ojugqtMhAdMIq0lAMB2lsY
+VITE_REACT_APP_SUPABASE_URL=your-supabase-url-here
+VITE_REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key-here
 
 # Authentication Credentials (CHANGE THESE!)
-VITE_REACT_APP_OWNER_USERNAME=owner
-VITE_REACT_APP_OWNER_PASSWORD=owner123
-VITE_REACT_APP_STAFF_USERNAME=staff
-VITE_REACT_APP_STAFF_PASSWORD=staff123
+VITE_REACT_APP_OWNER_USERNAME=your-secure-username
+VITE_REACT_APP_OWNER_PASSWORD=your-secure-password
+VITE_REACT_APP_STAFF_USERNAME=your-staff-username
+VITE_REACT_APP_STAFF_PASSWORD=your-staff-password
 
 # Settings PIN (CHANGE THIS!)
-VITE_REACT_APP_DEFAULT_PIN=6969
+VITE_REACT_APP_DEFAULT_PIN=your-secure-pin
 
 # Session Configuration
 VITE_REACT_APP_SESSION_TIMEOUT=1800000

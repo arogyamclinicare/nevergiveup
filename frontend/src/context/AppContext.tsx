@@ -26,8 +26,7 @@ export interface AppState {
   // UI State
   activeTab: string
   refreshTriggers: {
-    delivery: number
-    collection: number
+    shops: number
     reports: number
   }
   
@@ -55,7 +54,7 @@ type AppAction =
   | { type: 'SET_DELIVERIES'; payload: any[] }
   | { type: 'SET_PAYMENTS'; payload: any[] }
   | { type: 'SET_ACTIVE_TAB'; payload: string }
-  | { type: 'TRIGGER_REFRESH'; payload: 'delivery' | 'collection' | 'reports' }
+  | { type: 'TRIGGER_REFRESH'; payload: 'shops' | 'reports' }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'ADD_NOTIFICATION'; payload: Omit<Notification, 'id' | 'timestamp'> }
   | { type: 'REMOVE_NOTIFICATION'; payload: string }
@@ -71,10 +70,9 @@ const initialState: AppState = {
   milkTypes: [],
   deliveries: [],
   payments: [],
-  activeTab: 'home',
+  activeTab: 'shops',
   refreshTriggers: {
-    delivery: 0,
-    collection: 0,
+    shops: 0,
     reports: 0
   },
   error: null,
@@ -264,7 +262,7 @@ export const useAppActions = () => {
     setActiveTab: (tab: string) => 
       dispatch({ type: 'SET_ACTIVE_TAB', payload: tab }),
     
-    triggerRefresh: (type: 'delivery' | 'collection' | 'reports') => 
+    triggerRefresh: (type: 'shops' | 'reports') => 
       dispatch({ type: 'TRIGGER_REFRESH', payload: type }),
     
     setError: (error: string | null) => 

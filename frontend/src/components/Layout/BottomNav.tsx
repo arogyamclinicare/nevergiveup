@@ -1,6 +1,6 @@
-import { Home, Truck, DollarSign, BarChart3, Settings } from 'lucide-react'
+import { Home, Store, Settings } from 'lucide-react'
 
-type Tab = 'home' | 'delivery' | 'collection' | 'reports' | 'settings'
+type Tab = 'home' | 'shops' | 'settings'
 
 interface BottomNavProps {
   activeTab: Tab
@@ -14,9 +14,7 @@ export default function BottomNav({ activeTab, onTabChange, userRole }: BottomNa
   const getTabsForRole = (role: string) => {
     const allTabs = [
       { id: 'home' as Tab, icon: Home, label: 'Home' },
-      { id: 'delivery' as Tab, icon: Truck, label: 'Delivery' },
-      { id: 'collection' as Tab, icon: DollarSign, label: 'Collection' },
-      { id: 'reports' as Tab, icon: BarChart3, label: 'Reports' },
+      { id: 'shops' as Tab, icon: Store, label: 'Shops' },
       { id: 'settings' as Tab, icon: Settings, label: 'Settings' },
     ]
     

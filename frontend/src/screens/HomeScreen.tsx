@@ -5,6 +5,7 @@ import { Store, Clock, DollarSign, TrendingUp } from 'lucide-react'
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
   onCollectionRefresh?: () => void
+  refreshTrigger?: number
 }
 
 interface RouteStats {
@@ -15,7 +16,7 @@ interface RouteStats {
   totalShops: number
 }
 
-export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: HomeScreenProps) {
+export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, refreshTrigger }: HomeScreenProps) {
   // Props are used in useEffect dependencies
   const [routeStats, setRouteStats] = useState<RouteStats>({
     delivered: 0,
@@ -31,30 +32,34 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
       setLoading(true)
       const today = new Date().toISOString().split('T')[0]
       
-      // Get today's deliveries
-      const { data: deliveries } = await supabase
-        .from('deliveries')
-        .select('shop_id, total_amount, payment_amount, delivery_status')
-        .eq('delivery_date', today)
-        .eq('is_archived', false)
+      // Get today's deliveries and payments in parallel
+      const [deliveriesResult, paymentsResult, shopsResult] = await Promise.all([
+        supabase
+          .from('deliveries')
+          .select('shop_id, total_amount, payment_amount, delivery_status')
+          .eq('delivery_date', today),
+        supabase
+          .from('payments')
+          .select('shop_id, amount')
+          .eq('payment_date', today),
+        supabase
+          .from('shops')
+          .select('id')
+          .eq('is_active', true)
+      ])
 
-      // Get total shops
-      const { data: shops } = await supabase
-        .from('shops')
-        .select('id')
-        .eq('is_active', true)
+      const deliveries = deliveriesResult.data || []
+      const payments = paymentsResult.data || []
+      const shops = shopsResult.data || []
 
-      // Get collection data
-      const { data: collectionData } = await supabase
-        .rpc('get_collection_view', { p_date: today })
+      // Calculate totals
+      const delivered = deliveries.reduce((sum, d) => sum + Number(d.total_amount), 0)
+      const collected = payments.reduce((sum, p) => sum + Number(p.amount), 0)
+      const pending = delivered - collected
 
-
-      const delivered = deliveries?.reduce((sum, d) => sum + Number(d.total_amount), 0) || 0
-      const collected = deliveries?.reduce((sum, d) => sum + Number(d.payment_amount), 0) || 0
-      const pending = collectionData?.reduce((sum: number, c: any) => sum + Number(c.total_pending), 0) || 0
-      // Count shops that have any deliveries (regardless of status) as visited
-      const shopsVisited = new Set(deliveries?.map(d => d.shop_id) || []).size
-      const totalShops = shops?.length || 0
+      // Count shops that have any deliveries as visited
+      const shopsVisited = new Set(deliveries.map(d => d.shop_id)).size
+      const totalShops = shops.length
 
       setRouteStats({
         delivered,
@@ -72,6 +77,33 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh }: H
 
   useEffect(() => {
     fetchRouteStats()
+  }, [])
+
+  // Refresh when trigger changes
+  useEffect(() => {
+    if (refreshTrigger) {
+      fetchRouteStats()
+    }
+  }, [refreshTrigger])
+
+  // Daily reset at midnight (12:00 AM)
+  useEffect(() => {
+    const checkMidnight = () => {
+      const now = new Date()
+      const hours = now.getHours()
+      const minutes = now.getMinutes()
+      
+      // Check if it's exactly midnight (12:00 AM)
+      if (hours === 0 && minutes === 0) {
+        console.log('Midnight detected - resetting route stats')
+        fetchRouteStats()
+      }
+    }
+
+    // Check every minute for midnight
+    const interval = setInterval(checkMidnight, 60000) // 60 seconds
+
+    return () => clearInterval(interval)
   }, [])
 
   const currentDate = new Date().toLocaleDateString('en-GB', {

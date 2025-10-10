@@ -1,363 +1,724 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, ArrowUp, ArrowDown, Plus, Minus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Package, DollarSign, Clock, User, Phone, MapPin, FileText, CheckCircle, AlertCircle, Truck, CreditCard } from 'lucide-react'
-
-interface ShopDetailData {
-  shop_id: string
-  shop_name: string
-  shop_owner: string
-  shop_phone: string
-  shop_address: string
-  delivery_date: string
-  total_delivered: number
-  total_paid: number
-  total_pending: number
-  delivery_count: number
-  products_delivered: any[]
-  payment_history: any[]
-  delivery_notes: string
-}
+import { formatCurrency } from '../utils/formatCurrency'
 
 interface ShopDetailScreenProps {
   shopId: string
-  date: string
   onBack: () => void
 }
 
-export default function ShopDetailScreen({ shopId, date, onBack }: ShopDetailScreenProps) {
-  const [shopData, setShopData] = useState<ShopDetailData | null>(null)
+interface ChatMessage {
+  id: string
+  type: 'delivery' | 'payment'
+  content: string
+  amount: number
+  timestamp: string
+  date: string
+  created_at: string
+}
+
+interface MilkProduct {
+  id: string
+  name: string
+  price_per_packet: number
+}
+
+export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenProps) {
+  const [shop, setShop] = useState<any>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [milkProducts, setMilkProducts] = useState<MilkProduct[]>([])
+  const [selectedProducts, setSelectedProducts] = useState<{[key: string]: number}>({})
+  const [paymentAmount, setPaymentAmount] = useState<number>(0)
+  const [showMilkModal, setShowMilkModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [todayPending, setTodayPending] = useState<number>(0)
+  const [previousPending, setPreviousPending] = useState<number>(0)
+  const [totalPending, setTotalPending] = useState<number>(0)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    owner_name: '',
+    route_number: ''
+  })
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Load all data when shop changes
   useEffect(() => {
-    fetchShopDetail()
-  }, [shopId, date])
+    if (shopId) {
+      loadAllData()
+    }
+  }, [shopId])
 
-  const fetchShopDetail = async () => {
+  const loadAllData = async () => {
     try {
       setLoading(true)
-      setError(null)
-
-      // Use reports function for historical data (includes archived deliveries)
-      const { data, error } = await supabase.rpc('get_reports_shop_detail_view', {
-        p_shop_id: shopId,
-        p_date: date
-      })
-
-      if (error) throw error
-
-      if (data && data.length > 0) {
-        setShopData(data[0])
-      } else {
-        setError('No data found for this shop and date')
-      }
-    } catch (err: any) {
-      console.error('Error fetching shop detail:', err)
-      setError(err.message || 'Failed to load shop details')
+      
+      // Load all data in parallel for better performance
+      await Promise.all([
+        loadShopData(),
+        loadMilkProducts(),
+        loadMessages(),
+        loadPendingAmounts()
+      ])
+    } catch (error) {
+      console.error('Error loading shop data:', error)
+      // Retry once after a short delay
+      setTimeout(async () => {
+        try {
+          await Promise.all([
+            loadShopData(),
+            loadMilkProducts(),
+            loadMessages(),
+            loadPendingAmounts()
+          ])
+        } catch (retryError) {
+          console.error('Retry failed:', retryError)
+        }
+      }, 1000)
     } finally {
       setLoading(false)
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2
-    }).format(amount)
+  // Auto scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const loadShopData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shops')
+        .select('id, name, address, phone, owner_name, route_number')
+        .eq('id', shopId)
+        .single()
+
+      if (error) throw error
+      setShop(data)
+    } catch (error) {
+      console.error('Error loading shop:', error)
+    }
   }
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  const loadMilkProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('milk_types')
+        .select('*')
+        .order('name')
+
+      if (error) throw error
+      setMilkProducts(data || [])
+    } catch (error) {
+      console.error('Error loading milk products:', error)
+    }
+  }
+
+  const loadPendingAmounts = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Load all data in parallel for better performance
+      const [todayDeliveriesResult, todayPaymentsResult, allDeliveriesResult, allPaymentsResult] = await Promise.all([
+        supabase
+          .from('deliveries')
+          .select('total_amount, payment_amount')
+          .eq('shop_id', shopId)
+          .eq('delivery_date', today),
+        supabase
+          .from('payments')
+          .select('amount')
+          .eq('shop_id', shopId)
+          .eq('payment_date', today),
+        supabase
+          .from('deliveries')
+          .select('total_amount, payment_amount, delivery_date')
+          .eq('shop_id', shopId),
+        supabase
+          .from('payments')
+          .select('amount, payment_date')
+          .eq('shop_id', shopId)
+      ])
+
+      if (todayDeliveriesResult.error) throw todayDeliveriesResult.error
+      if (todayPaymentsResult.error) throw todayPaymentsResult.error
+      if (allDeliveriesResult.error) throw allDeliveriesResult.error
+      if (allPaymentsResult.error) throw allPaymentsResult.error
+
+      const todayDeliveries = todayDeliveriesResult.data || []
+      const todayPayments = todayPaymentsResult.data || []
+      const allDeliveries = allDeliveriesResult.data || []
+      const allPayments = allPaymentsResult.data || []
+
+      // Calculate today's pending
+      const todayTotal = todayDeliveries?.reduce((sum, d) => sum + Number(d.total_amount), 0) || 0
+      const todayPaid = todayPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+      const todayPendingAmount = Math.max(0, todayTotal - todayPaid)
+
+      // Calculate previous pending (before today)
+      const previousDeliveries = allDeliveries?.filter(d => d.delivery_date < today) || []
+      const previousPayments = allPayments?.filter(p => p.payment_date < today) || []
+      
+      const previousTotal = previousDeliveries.reduce((sum, d) => sum + Number(d.total_amount), 0)
+      const previousPaid = previousPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+      const previousPendingAmount = Math.max(0, previousTotal - previousPaid)
+
+      // Calculate total pending
+      const totalPendingAmount = todayPendingAmount + previousPendingAmount
+
+      // Debug logging
+      console.log('Pending Amounts Debug:', {
+        today,
+        todayDeliveries,
+        todayPayments,
+        todayTotal,
+        todayPaid,
+        todayPendingAmount,
+        previousDeliveries,
+        previousPayments,
+        previousTotal,
+        previousPaid,
+        previousPendingAmount,
+        totalPendingAmount
+      })
+
+      setTodayPending(todayPendingAmount)
+      setPreviousPending(previousPendingAmount)
+      setTotalPending(totalPendingAmount)
+    } catch (error) {
+      console.error('Error loading pending amounts:', error)
+    }
+  }
+
+  const loadMessages = async () => {
+    try {
+      // Load deliveries and payments in parallel
+      const [deliveriesResult, paymentsResult] = await Promise.all([
+        supabase
+          .from('deliveries')
+          .select('id, total_amount, products, created_at')
+          .eq('shop_id', shopId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('payments')
+          .select('id, amount, created_at')
+          .eq('shop_id', shopId)
+          .order('created_at', { ascending: false })
+      ])
+
+      if (deliveriesResult.error) throw deliveriesResult.error
+      if (paymentsResult.error) throw paymentsResult.error
+
+      const deliveries = deliveriesResult.data || []
+      const payments = paymentsResult.data || []
+
+      // Convert to chat messages
+      const deliveryMessages: ChatMessage[] = (deliveries || []).map(delivery => ({
+        id: `delivery-${delivery.id}`,
+        type: 'delivery',
+        content: formatDeliveryContent(delivery),
+        amount: delivery.total_amount,
+        timestamp: new Date(delivery.created_at).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        date: new Date(delivery.created_at).toLocaleDateString(),
+        created_at: delivery.created_at
+      }))
+
+      const paymentMessages: ChatMessage[] = (payments || []).map(payment => ({
+        id: `payment-${payment.id}`,
+        type: 'payment',
+        content: `${formatCurrency(payment.amount)} Paid`,
+        amount: payment.amount,
+        timestamp: new Date(payment.created_at).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        date: new Date(payment.created_at).toLocaleDateString(),
+        created_at: payment.created_at
+      }))
+
+      // Combine and sort by created_at timestamp (oldest first for WhatsApp style)
+      const allMessages = [...deliveryMessages, ...paymentMessages]
+        .sort((a, b) => {
+          // Sort by created_at timestamp, oldest first (ascending)
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        })
+
+      setMessages(allMessages)
+    } catch (error) {
+      console.error('Error loading messages:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatDeliveryContent = (delivery: any) => {
+    const products = delivery.products || []
+    const productLines = products.map((p: any) => 
+      `${p.name} x${p.quantity} = ${formatCurrency(p.price_per_packet * p.quantity)}`
+    ).join('\n')
+    
+    const total = delivery.total_amount
+    return `${productLines}\nTotal: ${formatCurrency(total)}`
+  }
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleAddMilk = () => {
+    setShowMilkModal(true)
+  }
+
+  const handleReceivePayment = () => {
+    setShowPaymentModal(true)
+  }
+
+  const handleSaveMilk = async () => {
+    try {
+      const totalAmount = Object.entries(selectedProducts).reduce((sum, [productId, quantity]) => {
+        const product = milkProducts.find(p => p.id === productId)
+        return sum + (product ? product.price_per_packet * quantity : 0)
+      }, 0)
+
+      const products = Object.entries(selectedProducts)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([productId, quantity]) => {
+          const product = milkProducts.find(p => p.id === productId)
+          return {
+            id: productId,
+            name: product?.name || '',
+            price_per_packet: product?.price_per_packet || 0,
+            quantity
+          }
+        })
+
+      const { error } = await supabase
+        .from('deliveries')
+        .insert({
+          shop_id: shopId,
+          delivery_boy_id: '270cf1bb-44ff-4d62-b98f-24cb2aedcbcb',
+          delivery_date: new Date().toISOString().split('T')[0],
+          products: products,
+          total_amount: totalAmount,
+          payment_status: 'pending',
+          payment_amount: 0,
+          delivery_status: 'delivered',
+          notes: `Milk delivered to ${shop?.name}`,
+          delivered_at: new Date().toISOString()
+        })
+
+      if (error) throw error
+
+      // Reset form
+      setSelectedProducts({})
+      setShowMilkModal(false)
+      
+      // Reload all data to refresh the UI
+      await loadAllData()
+    } catch (error) {
+      console.error('Error saving delivery:', error)
+    }
+  }
+
+  const handleSavePayment = async () => {
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .insert({
+          shop_id: shopId,
+          delivery_boy_id: '270cf1bb-44ff-4d62-b98f-24cb2aedcbcb',
+          amount: paymentAmount,
+          payment_date: new Date().toISOString().split('T')[0],
+          payment_type: 'cash',
+          notes: `Payment from ${shop?.name}`
+        })
+
+      if (error) throw error
+
+      // Reset form
+      setPaymentAmount(0)
+      setShowPaymentModal(false)
+      
+      // Reload all data to refresh the UI
+      await loadAllData()
+    } catch (error) {
+      console.error('Error saving payment:', error)
+    }
+  }
+
+  const updateQuantity = (productId: string, quantity: number) => {
+    setSelectedProducts(prev => ({
+      ...prev,
+      [productId]: Math.max(0, quantity)
+    }))
+  }
+
+  const getTotalAmount = () => {
+    return Object.entries(selectedProducts).reduce((sum, [productId, quantity]) => {
+      const product = milkProducts.find(p => p.id === productId)
+      return sum + (product ? product.price_per_packet * quantity : 0)
+    }, 0)
+  }
+
+  const handleSaveShop = async () => {
+    try {
+      const { error } = await supabase
+        .from('shops')
+        .update({
+          name: editForm.name,
+          address: editForm.address,
+          phone: editForm.phone,
+          owner_name: editForm.owner_name,
+          route_number: editForm.route_number
+        })
+        .eq('id', shopId)
+
+      if (error) throw error
+
+      // Reload shop data
+      await loadShopData()
+      setShowEditModal(false)
+    } catch (error) {
+      console.error('Error updating shop:', error)
+    }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <p className="text-sm text-gray-600">Loading shop details...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-3">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-red-800 text-sm">{error}</p>
-          <button
-            onClick={fetchShopDetail}
-            className="mt-2 text-xs text-red-600 hover:text-red-800 font-medium"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!shopData) {
-    return (
-      <div className="p-3">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-          <Package className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">No data available</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading chat...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-3 space-y-3">
+    <div className="h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center space-x-3">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="mr-3 p-2 hover:bg-gray-100 rounded-full"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-gray-900">{shopData.shop_name}</h1>
-          <p className="text-xs text-gray-500">{new Date(shopData.delivery_date).toLocaleDateString()}</p>
+          <h1 className="text-lg font-semibold text-gray-900">{shop?.name}</h1>
+          <p className="text-sm text-gray-500">View Profile</p>
+        </div>
+        <div className="flex space-x-2">
+          <button 
+            onClick={() => {
+              setEditForm({
+                name: shop?.name || '',
+                address: shop?.address || '',
+                phone: shop?.phone || '',
+                owner_name: shop?.owner_name || '',
+                route_number: shop?.route_number || ''
+              })
+              setShowEditModal(true)
+            }}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+          <button className="p-2 hover:bg-gray-100 rounded-full">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Shop Info */}
-      <div className="bg-white rounded-lg p-3 border border-gray-100">
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2">
-            <User className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Owner: {shopData.shop_owner}</span>
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+        {/* Today Separator */}
+        <div className="flex justify-center">
+          <div className="bg-teal-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+            Today
           </div>
-          {shopData.shop_phone && (
-            <div className="flex items-center space-x-2">
-              <Phone className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">{shopData.shop_phone}</span>
-            </div>
-          )}
-          {shopData.shop_address && (
-            <div className="flex items-center space-x-2">
-              <MapPin className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">{shopData.shop_address}</span>
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Financial Summary */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-blue-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-blue-600 font-medium">Delivered</p>
-          <p className="text-sm font-bold text-blue-800">
-            {formatCurrency(shopData.total_delivered)}
-          </p>
-        </div>
-        <div className="bg-green-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-green-600 font-medium">Paid</p>
-          <p className="text-sm font-bold text-green-800">
-            {formatCurrency(shopData.total_paid)}
-          </p>
-        </div>
-        <div className="bg-orange-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-orange-600 font-medium">Pending</p>
-          <p className="text-sm font-bold text-orange-800">
-            {formatCurrency(shopData.total_pending)}
-          </p>
-        </div>
-      </div>
-
-
-      {/* Products Delivered */}
-      {shopData.products_delivered && shopData.products_delivered.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-100">
-          <div className="p-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center">
-              <Package className="w-4 h-4 mr-2" />
-              Products Delivered ({shopData.delivery_count})
-            </h3>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {shopData.products_delivered.map((delivery: any, index: number) => (
-              <div key={delivery.delivery_id || index} className="p-3">
-                {/* Delivery Header */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <Truck className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-medium text-gray-900">
-                      Delivery #{index + 1}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {delivery.payment_status === 'paid' && (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    )}
-                    {delivery.payment_status === 'partial' && (
-                      <AlertCircle className="w-4 h-4 text-yellow-500" />
-                    )}
-                    {delivery.payment_status === 'pending' && (
-                      <Clock className="w-4 h-4 text-red-500" />
-                    )}
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      delivery.payment_status === 'paid'
-                        ? 'bg-green-100 text-green-700'
-                        : delivery.payment_status === 'partial'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : delivery.payment_status === 'pay_tomorrow'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {delivery.payment_status === 'paid' ? 'Fully Paid' : 
-                       delivery.payment_status === 'partial' ? 'Partially Paid' :
-                       delivery.payment_status === 'pay_tomorrow' ? 'Pay Tomorrow' :
-                       'Pending Payment'}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Products List */}
-                {delivery.products && Array.isArray(delivery.products) && (
-                  <div className="bg-gray-50 rounded-lg p-2 mb-3">
-                    <div className="space-y-1">
-                      {delivery.products.map((product: any, pIndex: number) => (
-                        <div key={pIndex} className="flex justify-between text-xs">
-                          <span className="text-gray-700">
-                            {product.name} x {product.quantity}
-                          </span>
-                          <span className="font-medium text-gray-900">
-                            {formatCurrency(product.subtotal)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+        {/* Messages */}
+        {messages.map((message, index) => (
+          <div key={message.id} className={`flex ${message.type === 'delivery' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+              message.type === 'delivery' 
+                ? 'bg-blue-100 text-blue-900' 
+                : 'bg-green-100 text-green-900'
+            }`}>
+              <div className="flex items-center space-x-2 mb-1">
+                {message.type === 'delivery' ? (
+                  <ArrowUp className="w-4 h-4" />
+                ) : (
+                  <ArrowDown className="w-4 h-4" />
                 )}
-                
-                {/* Financial Summary */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="bg-blue-50 rounded p-2 text-center">
-                    <p className="text-xs text-blue-600">Total Amount</p>
-                    <p className="text-sm font-bold text-blue-800">
-                      {formatCurrency(delivery.total_amount)}
-                    </p>
+                <span className="text-xs font-medium">{message.timestamp}</span>
+              </div>
+              <div className="whitespace-pre-line text-sm">
+                {message.content}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Bottom Action Buttons - Fixed above navigation */}
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
+        <div className="flex space-x-3">
+          <button
+            onClick={handleReceivePayment}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center space-x-2"
+          >
+            <ArrowDown className="w-5 h-5" />
+            <span>Receive</span>
+          </button>
+          <button
+            onClick={handleAddMilk}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center space-x-2"
+          >
+            <ArrowUp className="w-5 h-5" />
+            <span>Add Milk</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Add Milk Modal */}
+      {showMilkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Add Milk Delivery</h3>
+            
+            <div className="space-y-4">
+              {milkProducts.map(product => (
+                <div key={product.id} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="font-medium">{product.name}</p>
+                    <p className="text-sm text-gray-500">{formatCurrency(product.price_per_packet)} each</p>
                   </div>
-                  <div className="bg-green-50 rounded p-2 text-center">
-                    <p className="text-xs text-green-600">Amount Paid</p>
-                    <p className="text-sm font-bold text-green-800">
-                      {formatCurrency(delivery.payment_amount)}
-                    </p>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) - 1)}
+                      className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={selectedProducts[product.id] || 0}
+                      onChange={(e) => updateQuantity(product.id, Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-12 text-center font-medium border border-gray-300 rounded px-1 py-1"
+                    />
+                    <button
+                      onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) + 1)}
+                      className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                
-                {/* Delivery & Collection Info */}
-                <div className="space-y-2">
-                  {delivery.delivery_boy && (
-                    <div className="flex items-center space-x-2 text-xs">
-                      <Truck className="w-3 h-3 text-blue-500" />
-                      <span className="text-gray-600">Delivered by:</span>
-                      <span className="font-medium text-gray-900">{delivery.delivery_boy}</span>
-                    </div>
-                  )}
-                  
-                  {delivery.delivered_at && (
-                    <div className="flex items-center space-x-2 text-xs">
-                      <Clock className="w-3 h-3 text-gray-500" />
-                      <span className="text-gray-600">Delivered at:</span>
-                      <span className="font-medium text-gray-900">
-                        {formatDateTime(delivery.delivered_at)}
-                      </span>
-                    </div>
-                  )}
+              ))}
+            </div>
+
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Total:</span>
+                <span className="text-lg font-bold">{formatCurrency(getTotalAmount())}</span>
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowMilkModal(false)}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMilk}
+                disabled={getTotalAmount() === 0}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Receive Payment</h3>
+            
+            {/* Pending Amounts Summary */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Today's Pending:</span>
+                  <span className="font-medium">{formatCurrency(todayPending)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Previous Pending:</span>
+                  <span className="font-medium">{formatCurrency(previousPending)}</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between">
+                  <span className="text-sm font-semibold text-gray-800">Total Pending:</span>
+                  <span className="font-bold text-lg">{formatCurrency(totalPending)}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* Payment History */}
-      {shopData.payment_history && shopData.payment_history.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-100">
-          <div className="p-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center">
-              <CreditCard className="w-4 h-4 mr-2" />
-              Payment Collection History
-            </h3>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {shopData.payment_history.map((payment: any, index: number) => (
-              <div key={payment.payment_id || index} className="p-3">
-                {/* Payment Header */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span className="text-sm font-bold text-gray-900">
-                      {formatCurrency(payment.amount)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {formatDateTime(payment.created_at)}
-                  </span>
-                </div>
-                
-                {/* Collection Info */}
-                <div className="bg-green-50 rounded-lg p-2 mb-2">
-                  <div className="flex items-center space-x-2 text-xs">
-                    <User className="w-3 h-3 text-green-600" />
-                    <span className="text-green-700">Collected by:</span>
-                    <span className="font-medium text-green-800">{payment.collected_by}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-xs mt-1">
-                    <Clock className="w-3 h-3 text-green-600" />
-                    <span className="text-green-700">Payment Date:</span>
-                    <span className="font-medium text-green-800">
-                      {new Date(payment.payment_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Notes */}
-                {payment.notes && (
-                  <div className="bg-gray-50 rounded p-2">
-                    <div className="flex items-start space-x-2 text-xs">
-                      <FileText className="w-3 h-3 text-gray-500 mt-0.5" />
-                      <div>
-                        <span className="text-gray-600">Note:</span>
-                        <p className="text-gray-700 mt-1">{payment.notes}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount Received
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter amount"
+                />
               </div>
-            ))}
+              
+              {/* Full Amount Button */}
+              <button
+                onClick={() => setPaymentAmount(totalPending)}
+                className="w-full py-2 px-4 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
+              >
+                Full Amount ({formatCurrency(totalPending)})
+              </button>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePayment}
+                disabled={paymentAmount <= 0}
+                className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Payment
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Delivery Notes */}
-      {shopData.delivery_notes && (
-        <div className="bg-white rounded-lg p-3 border border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-900 flex items-center mb-2">
-            <FileText className="w-4 h-4 mr-2" />
-            Delivery Notes
-          </h3>
-          <p className="text-sm text-gray-600">{shopData.delivery_notes}</p>
-        </div>
-      )}
+      {/* Edit Shop Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Edit Shop Details</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Shop Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter shop name"
+                />
+              </div>
 
-      {/* No Data Message */}
-      {shopData.delivery_count === 0 && (
-        <div className="bg-gray-50 rounded-lg p-4 text-center">
-          <Package className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600">No deliveries on this date</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Owner Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.owner_name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, owner_name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter owner name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter phone number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <textarea
+                  value={editForm.address}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter shop address"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Route Number
+                </label>
+                <input
+                  type="text"
+                  value={editForm.route_number}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, route_number: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter route number"
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveShop}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

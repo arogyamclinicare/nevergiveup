@@ -6,25 +6,23 @@ import NotificationSystem from './components/NotificationSystem'
 import LoginScreen from './screens/LoginScreen'
 import { 
   HomeScreen, 
-  DeliveryScreen, 
-  CollectionScreen, 
-  ReportsScreen, 
   SettingsScreen,
-  AddDeliveryScreen,
-  ShopDetailScreen // Used in ShopDetailScreen component
+  AddDeliveryScreen
 } from './components/lazy/LazyScreens'
+import ShopsScreen from './screens/ShopsScreen'
+import ShopDetailScreen from './screens/ShopDetailScreen'
 import PaymentModal from './screens/PaymentModal'
 import { Shop, CollectionViewRow } from './lib/supabase'
 import { SessionManager } from './utils/sessionManager'
 
 // Tab type is defined in AppContext
-type DeliveryView = 'shop-list' | 'add-delivery'
+type ShopsView = 'shops-list' | 'shop-detail'
 
 function AppContent() {
   const { state } = useApp()
   const { setActiveTab, setUser, setAuthenticated, addNotification, triggerRefresh } = useAppActions()
   
-  const [deliveryView, setDeliveryView] = useState<DeliveryView>('shop-list')
+  const [shopsView, setShopsView] = useState<ShopsView>('shops-list')
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
   const [selectedCollectionShop, setSelectedCollectionShop] = useState<CollectionViewRow | null>(null)
   // Success messages handled by NotificationSystem
@@ -70,12 +68,14 @@ function AppContent() {
 
   const handleSelectShop = (shop: Shop) => {
     setSelectedShop(shop)
-    setDeliveryView('add-delivery')
+    setShopsView('shop-detail')
   }
 
   const handleBackToShopList = () => {
     setSelectedShop(null)
-    setDeliveryView('shop-list')
+    setShopsView('shops-list')
+    // Trigger refresh to update shop list with latest data
+    triggerRefresh('shops')
   }
 
   const handleDeliverySaved = () => {
@@ -85,8 +85,8 @@ function AppContent() {
       autoHide: true
     })
     setSelectedShop(null)
-    setDeliveryView('shop-list')
-    triggerRefresh('delivery')
+    setShopsView('shops-list')
+    triggerRefresh('shops')
   }
 
   const handleSelectCollectionShop = (shop: CollectionViewRow) => {
@@ -100,40 +100,31 @@ function AppContent() {
       autoHide: true
     })
     setSelectedCollectionShop(null)
-    triggerRefresh('collection')
+    triggerRefresh('shops')
   }
 
 
   const renderContent = () => {
-    // Delivery Tab Logic
-    if (state.activeTab === 'delivery') {
-      if (deliveryView === 'add-delivery' && selectedShop) {
+    // Shops Tab Logic
+    if (state.activeTab === 'shops') {
+      if (shopsView === 'shop-detail' && selectedShop) {
         return (
-          <AppLayout 
-            title={`Add Delivery`}
-            showBackButton
+          <ShopDetailScreen
+            shopId={selectedShop.id}
             onBack={handleBackToShopList}
-            showLogoutButton={state.user?.role === 'staff'}
-            onLogout={handleLogout}
-          >
-            <AddDeliveryScreen
-              shop={selectedShop}
-              onBack={handleBackToShopList}
-              onSuccess={handleDeliverySaved}
-            />
-          </AppLayout>
+          />
         )
       }
       
       return (
         <AppLayout 
-          title="Delivery" 
+          title="Shops" 
           showLogoutButton={state.user?.role === 'staff'} 
           onLogout={handleLogout}
         >
-          <DeliveryScreen 
+          <ShopsScreen 
             onSelectShop={handleSelectShop} 
-            refreshTrigger={state.refreshTriggers.delivery}
+            refreshTrigger={state.refreshTriggers.shops}
           />
         </AppLayout>
       )
@@ -149,32 +140,10 @@ function AppContent() {
             onLogout={handleLogout}
           >
             <HomeScreen 
-              onDeliveryRefresh={() => triggerRefresh('delivery')}
-              onCollectionRefresh={() => triggerRefresh('collection')}
+              onDeliveryRefresh={() => triggerRefresh('shops')}
+              onCollectionRefresh={() => triggerRefresh('shops')}
+              refreshTrigger={state.refreshTriggers.shops}
             />
-          </AppLayout>
-        )
-      case 'collection':
-        return (
-          <AppLayout 
-            title="Collection" 
-            showLogoutButton={state.user?.role === 'staff'} 
-            onLogout={handleLogout}
-          >
-            <CollectionScreen 
-              onSelectShop={handleSelectCollectionShop} 
-              refreshTrigger={state.refreshTriggers.collection}
-            />
-          </AppLayout>
-        )
-      case 'reports':
-        return (
-          <AppLayout 
-            title="Reports" 
-            showLogoutButton={state.user?.role === 'staff'} 
-            onLogout={handleLogout}
-          >
-            <ReportsScreen />
           </AppLayout>
         )
       case 'settings':
@@ -192,10 +161,10 @@ function AppContent() {
     }
   }
 
-  // Show login screen if not authenticated
-  if (!state.isAuthenticated) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />
-  }
+  // Skip login for demo - go directly to shops
+  // if (!state.isAuthenticated) {
+  //   return <LoginScreen onLoginSuccess={handleLoginSuccess} />
+  // }
 
   return (
     <div className="h-screen overflow-hidden">

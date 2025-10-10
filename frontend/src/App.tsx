@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AppProvider, useApp, useAppActions } from './context/AppContext'
 import AppLayout from './components/Layout/AppLayout'
 import BottomNav from './components/Layout/BottomNav'
 import NotificationSystem from './components/NotificationSystem'
-import LoginScreen from './screens/LoginScreen'
 import { 
   HomeScreen, 
-  SettingsScreen,
-  AddDeliveryScreen
+  SettingsScreen
 } from './components/lazy/LazyScreens'
 import ShopsScreen from './screens/ShopsScreen'
 import ShopDetailScreen from './screens/ShopDetailScreen'
@@ -27,6 +25,19 @@ function AppContent() {
   const [selectedCollectionShop, setSelectedCollectionShop] = useState<CollectionViewRow | null>(null)
   // Success messages handled by NotificationSystem
 
+  // Authentication handlers
+  const handleLogout = useCallback(() => {
+    setUser(null)
+    setAuthenticated(false)
+    setActiveTab('home')
+    SessionManager.clearSession()
+    addNotification({
+      type: 'info',
+      message: 'Logged out successfully',
+      autoHide: true
+    })
+  }, [addNotification, setUser, setAuthenticated, setActiveTab])
+
   // Session timeout watcher
   useEffect(() => {
     if (state.isAuthenticated) {
@@ -40,31 +51,7 @@ function AppContent() {
       })
       return cleanup
     }
-  }, [state.isAuthenticated])
-
-  // Authentication handlers
-  const handleLoginSuccess = (user: any, role: string) => {
-    setUser(user)
-    setAuthenticated(true)
-    SessionManager.setSession(user, role)
-    addNotification({
-      type: 'success',
-      message: `Welcome back, ${user.name}!`,
-      autoHide: true
-    })
-  }
-
-  const handleLogout = () => {
-    setUser(null)
-    setAuthenticated(false)
-    setActiveTab('home')
-    SessionManager.clearSession()
-    addNotification({
-      type: 'info',
-      message: 'Logged out successfully',
-      autoHide: true
-    })
-  }
+  }, [state.isAuthenticated, addNotification, handleLogout])
 
   const handleSelectShop = (shop: Shop) => {
     setSelectedShop(shop)
@@ -78,30 +65,6 @@ function AppContent() {
     triggerRefresh('shops')
   }
 
-  const handleDeliverySaved = () => {
-    addNotification({
-      type: 'success',
-      message: 'Delivery saved successfully!',
-      autoHide: true
-    })
-    setSelectedShop(null)
-    setShopsView('shops-list')
-    triggerRefresh('shops')
-  }
-
-  const handleSelectCollectionShop = (shop: CollectionViewRow) => {
-    setSelectedCollectionShop(shop)
-  }
-
-  const handlePaymentSuccess = () => {
-    addNotification({
-      type: 'success',
-      message: 'Payment processed successfully!',
-      autoHide: true
-    })
-    setSelectedCollectionShop(null)
-    triggerRefresh('shops')
-  }
 
 
   const renderContent = () => {
@@ -170,7 +133,7 @@ function AppContent() {
     <div className="h-screen overflow-hidden">
       {renderContent()}
       <BottomNav 
-        activeTab={state.activeTab as any} 
+        activeTab={state.activeTab as 'home' | 'shops' | 'settings'} 
         onTabChange={setActiveTab}
         userRole={state.user?.role}
         onLogout={handleLogout}
@@ -181,7 +144,15 @@ function AppContent() {
         <PaymentModal
           shop={selectedCollectionShop}
           onClose={() => setSelectedCollectionShop(null)}
-          onSuccess={handlePaymentSuccess}
+          onSuccess={() => {
+            addNotification({
+              type: 'success',
+              message: 'Payment processed successfully!',
+              autoHide: true
+            })
+            setSelectedCollectionShop(null)
+            triggerRefresh('shops')
+          }}
         />
       )}
       

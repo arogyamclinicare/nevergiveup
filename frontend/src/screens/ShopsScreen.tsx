@@ -128,12 +128,28 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
 
       // Process and combine data
       const processedShops = shops?.map(shop => {
-        // Calculate balance from all deliveries and payments
+        // Calculate balance from all deliveries and payments - WITH VALIDATION
         const shopAllDeliveries = allDeliveries?.filter(d => d.shop_id === shop.id) || [];
         const shopAllPayments = allPayments?.filter(p => p.shop_id === shop.id) || [];
         
-        const totalDelivered = shopAllDeliveries.reduce((sum, d) => sum + Number(d.total_amount), 0);
-        const totalPaid = shopAllPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const totalDelivered = shopAllDeliveries.reduce((sum, d) => {
+          const amount = Number(d.total_amount) || 0;
+          if (isNaN(amount) || amount < 0) {
+            console.error('Invalid delivery amount in shop list:', d);
+            return sum;
+          }
+          return sum + amount;
+        }, 0);
+        
+        const totalPaid = shopAllPayments.reduce((sum, p) => {
+          const amount = Number(p.amount) || 0;
+          if (isNaN(amount) || amount < 0) {
+            console.error('Invalid payment amount in shop list:', p);
+            return sum;
+          }
+          return sum + amount;
+        }, 0);
+        
         const currentBalance = totalDelivered - totalPaid;
         
         // Get today's deliveries and payments
@@ -319,29 +335,29 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
                   setTimeout(() => setNavigating(false), 1000)
                 }
               }}
-              className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer ${
+              className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer touch-manipulation ${
                 navigating ? 'opacity-50 pointer-events-none' : ''
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  {/* Shop Avatar */}
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 font-semibold text-lg">
+                  {/* Shop Avatar - Mobile Optimized */}
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-xl">
                       {shop.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{shop.name}</h3>
-                    <p className="text-sm text-gray-600">{shop.owner_name}</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 text-lg truncate">{shop.name}</h3>
+                    <p className="text-base text-gray-600 font-medium">{shop.owner_name}</p>
                     
-                    {/* Status */}
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span className={`text-xs font-medium ${getStatusColor(shop.daily_status)}`}>
+                    {/* Status - Mobile Optimized */}
+                    <div className="flex items-center space-x-2 mt-2">
+                      <span className={`text-sm font-semibold px-2 py-1 rounded-full ${getStatusColor(shop.daily_status)}`}>
                         {getStatusText(shop.daily_status)}
                       </span>
-                      <span className="text-xs text-gray-500">Route {shop.route_number}</span>
+                      <span className="text-sm text-gray-500 font-medium">Route {shop.route_number}</span>
                     </div>
 
                     {/* Last Transaction */}
@@ -361,10 +377,10 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
                 </div>
 
                 <div className="text-right">
-                  <div className={`text-lg font-semibold ${shop.current_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  <div className={`text-xl font-bold ${shop.current_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {formatCurrency(shop.current_balance)}
                   </div>
-                  <div className="text-xs text-gray-500">Due</div>
+                  <div className="text-sm text-gray-500 font-medium">Due</div>
                 </div>
               </div>
             </div>

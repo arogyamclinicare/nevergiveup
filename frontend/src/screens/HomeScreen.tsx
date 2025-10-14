@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Store, Clock, DollarSign, TrendingUp } from 'lucide-react'
+import { Store, Clock, DollarSign, TrendingUp, Package } from 'lucide-react'
 
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
@@ -16,6 +16,13 @@ interface RouteStats {
   totalShops: number
 }
 
+interface StockItem {
+  id: string
+  product_name: string
+  current_quantity: number
+  low_stock_threshold: number
+}
+
 export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, refreshTrigger }: HomeScreenProps) {
   // Props are used in useEffect dependencies
   const [routeStats, setRouteStats] = useState<RouteStats>({
@@ -25,7 +32,22 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
     shopsVisited: 0,
     totalShops: 0
   })
+  const [stockItems, setStockItems] = useState<StockItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  const fetchStockData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stock')
+        .select('*')
+        .order('product_name')
+
+      if (error) throw error
+      setStockItems(data || [])
+    } catch (error) {
+      console.error('Error fetching stock data:', error)
+    }
+  }
 
   const fetchRouteStats = async () => {
     try {
@@ -77,12 +99,14 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
 
   useEffect(() => {
     fetchRouteStats()
+    fetchStockData()
   }, [])
 
   // Refresh when trigger changes
   useEffect(() => {
     if (refreshTrigger) {
       fetchRouteStats()
+      fetchStockData()
     }
   }, [refreshTrigger])
 
@@ -178,6 +202,53 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
             className="bg-purple-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progressPercentage}%` }}
           ></div>
+        </div>
+      </div>
+
+      {/* Stock Status Card */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 mt-6">
+        <div className="flex items-center mb-4">
+          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+            <Package className="w-4 h-4 text-green-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900">Stock Status</h3>
+            <p className="text-sm text-gray-600">Current Inventory</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2">
+          {stockItems.map((item) => {
+            const isLowStock = item.current_quantity <= item.low_stock_threshold
+            return (
+              <div 
+                key={item.id}
+                className={`p-2 rounded-lg border-2 ${
+                  isLowStock 
+                    ? 'bg-red-50 border-red-200' 
+                    : 'bg-green-50 border-green-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-semibold truncate ${
+                    isLowStock ? 'text-red-800' : 'text-green-800'
+                  }`}>
+                    {item.product_name}
+                  </span>
+                  <span className={`text-sm font-bold ${
+                    isLowStock ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {item.current_quantity}
+                  </span>
+                </div>
+                {isLowStock && (
+                  <div className="text-xs text-red-600 font-medium mt-0.5">
+                    Low Stock!
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

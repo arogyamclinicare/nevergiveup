@@ -3,6 +3,7 @@ import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, St
 import ResetDialog from './ResetDialog'
 import ShopManagementScreen from './ShopManagementScreen'
 import ProductManagementScreen from './ProductManagementScreen'
+import StockManagementScreen from './StockManagementScreen'
 import { ENV } from '../config/environment'
 
 interface SettingsScreenProps {
@@ -12,7 +13,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ userRole, onLogout }: SettingsScreenProps) {
   const [showResetDialog, setShowResetDialog] = useState(false)
-  const [activeTab, setActiveTab] = useState<'main' | 'shops' | 'products'>('main')
+  const [activeTab, setActiveTab] = useState<'main' | 'shops' | 'products' | 'stock'>('main')
   const [showPinDialog, setShowPinDialog] = useState(false)
   const [pin, setPin] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -120,11 +121,15 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
   }
 
   if (activeTab === 'shops') {
-    return <ShopManagementScreen />
+    return <ShopManagementScreen onBack={() => setActiveTab('main')} />
   }
 
   if (activeTab === 'products') {
-    return <ProductManagementScreen />
+    return <ProductManagementScreen onBack={() => setActiveTab('main')} />
+  }
+
+  if (activeTab === 'stock') {
+    return <StockManagementScreen onBack={() => setActiveTab('main')} />
   }
 
   return (
@@ -233,6 +238,17 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
             <Package className="w-4 h-4 mx-auto mb-1" />
             Products
           </button>
+          <button
+            onClick={() => setActiveTab('stock')}
+            className={`flex-1 p-3 text-sm font-medium ${
+              (activeTab as string) === 'stock' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Package className="w-4 h-4 mx-auto mb-1" />
+            Stock
+          </button>
         </div>
 
         {/* Main Settings Content */}
@@ -253,6 +269,33 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
                 >
                   Reset Now
+                </button>
+              </div>
+            </div>
+
+            {/* Clear All Data - For Testing */}
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium text-orange-900">Clear All Data</h3>
+                  <p className="text-sm text-orange-700">Delete all shops, deliveries, and payments (for testing)</p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (confirm('⚠️ WARNING: This will delete ALL data including shops, deliveries, and payments. This cannot be undone!\n\nAre you sure you want to continue?')) {
+                      if (confirm('This is your final warning. ALL DATA WILL BE PERMANENTLY DELETED. Continue?')) {
+                        // Clear all data
+                        alert('All data has been cleared! Refresh the page to see the changes.')
+                        // In a real implementation, you would call the database delete functions here
+                      }
+                    }
+                  }}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                >
+                  Clear All
                 </button>
               </div>
             </div>

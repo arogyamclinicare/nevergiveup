@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, ArrowUp, ArrowDown, Plus, Minus } from 'lucide-react'
+import { ArrowLeft, ArrowUp, ArrowDown, Plus, Minus, X, DollarSign, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../utils/formatCurrency'
 
@@ -44,6 +44,10 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
     owner_name: '',
     route_number: ''
   })
+  const [stockLevels, setStockLevels] = useState<{[key: string]: number}>({})
+  const [showCustomRatesModal, setShowCustomRatesModal] = useState(false)
+  const [customRates, setCustomRates] = useState<{[key: string]: number}>({})
+  const [defaultRates, setDefaultRates] = useState<{[key: string]: number}>({})
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   // Load all data when shop changes
@@ -52,6 +56,95 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       loadAllData()
     }
   }, [shopId])
+
+  const loadStockLevels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stock')
+        .select('product_name, current_quantity')
+
+      if (error) throw error
+
+      const stockMap: {[key: string]: number} = {}
+      data?.forEach(item => {
+        stockMap[item.product_name] = item.current_quantity
+      })
+      
+      setStockLevels(stockMap)
+    } catch (error) {
+      console.error('Error loading stock levels:', error)
+    }
+  }
+
+  const loadCustomRates = async () => {
+    try {
+      // Load default rates
+      const { data: defaultData, error: defaultError } = await supabase
+        .from('milk_types')
+        .select('id, name, price_per_packet')
+      
+      if (defaultError) throw defaultError
+      
+      const defaultMap: {[key: string]: number} = {}
+      defaultData?.forEach((item: any) => {
+        defaultMap[item.name] = item.price_per_packet
+      })
+      setDefaultRates(defaultMap)
+      
+      // Load custom rates for this shop
+      const { data: customData, error: customError } = await supabase
+        .from('shop_rates')
+        .select(`
+          custom_price_per_packet,
+          milk_types!inner(name)
+        `)
+        .eq('shop_id', shopId)
+      
+      if (customError) throw customError
+      
+      const customMap: {[key: string]: number} = {}
+      customData?.forEach((item: any) => {
+        customMap[item.milk_types.name] = item.custom_price_per_packet
+      })
+      setCustomRates(customMap)
+    } catch (error) {
+      console.error('Error loading custom rates:', error)
+    }
+  }
+
+  const saveCustomRates = async () => {
+    try {
+      // Delete existing custom rates for this shop
+      await supabase
+        .from('shop_rates')
+        .delete()
+        .eq('shop_id', shopId)
+      
+      // Insert new custom rates
+      const ratesToInsert = Object.entries(customRates).map(([productName, price]) => {
+        const product = milkProducts.find(p => p.name === productName)
+        return {
+          shop_id: shopId,
+          milk_type_id: product?.id,
+          custom_price_per_packet: price
+        }
+      }).filter(rate => rate.milk_type_id)
+      
+      if (ratesToInsert.length > 0) {
+        const { error } = await supabase
+          .from('shop_rates')
+          .insert(ratesToInsert)
+        
+        if (error) throw error
+      }
+      
+      setShowCustomRatesModal(false)
+      alert('Custom rates saved successfully!')
+    } catch (error) {
+      console.error('Error saving custom rates:', error)
+      alert('Failed to save custom rates. Please try again.')
+    }
+  }
 
   const loadAllData = async () => {
     try {
@@ -62,7 +155,9 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         loadShopData(),
         loadMilkProducts(),
         loadMessages(),
-        loadPendingAmounts()
+        loadPendingAmounts(),
+        loadStockLevels(),
+        loadCustomRates()
       ])
     } catch (error) {
       console.error('Error loading shop data:', error)
@@ -154,36 +249,76 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       const allDeliveries = allDeliveriesResult.data || []
       const allPayments = allPaymentsResult.data || []
 
-      // Calculate today's pending
-      const todayTotal = todayDeliveries?.reduce((sum, d) => sum + Number(d.total_amount), 0) || 0
-      const todayPaid = todayPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+      // Calculate today's pending - WITH VALIDATION
+      const todayTotal = todayDeliveries?.reduce((sum, d) => {
+        const amount = Number(d.total_amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid delivery amount:', d)
+          return sum
+        }
+        return sum + amount
+      }, 0) || 0
+      
+      const todayPaid = todayPayments?.reduce((sum, p) => {
+        const amount = Number(p.amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid payment amount:', p)
+          return sum
+        }
+        return sum + amount
+      }, 0) || 0
+      
       const todayPendingAmount = Math.max(0, todayTotal - todayPaid)
 
-      // Calculate previous pending (before today)
-      const previousDeliveries = allDeliveries?.filter(d => d.delivery_date < today) || []
-      const previousPayments = allPayments?.filter(p => p.payment_date < today) || []
+      // Calculate previous pending (before today) - FIXED DATE COMPARISON
+      const previousDeliveries = allDeliveries?.filter(d => {
+        const deliveryDate = new Date(d.delivery_date).toISOString().split('T')[0]
+        return deliveryDate < today
+      }) || []
+      const previousPayments = allPayments?.filter(p => {
+        const paymentDate = new Date(p.payment_date).toISOString().split('T')[0]
+        return paymentDate < today
+      }) || []
       
-      const previousTotal = previousDeliveries.reduce((sum, d) => sum + Number(d.total_amount), 0)
-      const previousPaid = previousPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+      const previousTotal = previousDeliveries.reduce((sum, d) => {
+        const amount = Number(d.total_amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid previous delivery amount:', d)
+          return sum
+        }
+        return sum + amount
+      }, 0)
+      
+      const previousPaid = previousPayments.reduce((sum, p) => {
+        const amount = Number(p.amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid previous payment amount:', p)
+          return sum
+        }
+        return sum + amount
+      }, 0)
+      
       const previousPendingAmount = Math.max(0, previousTotal - previousPaid)
 
       // Calculate total pending
       const totalPendingAmount = todayPendingAmount + previousPendingAmount
 
-      // Debug logging
-      console.log('Pending Amounts Debug:', {
+      // Enhanced Debug logging for Smart Store investigation
+      console.log('🔍 SMART STORE DEBUG - Pending Amounts:', {
+        shopId,
         today,
-        todayDeliveries,
-        todayPayments,
+        todayDeliveries: todayDeliveries.map(d => ({ amount: d.total_amount })),
+        todayPayments: todayPayments.map(p => ({ amount: p.amount })),
         todayTotal,
         todayPaid,
         todayPendingAmount,
-        previousDeliveries,
-        previousPayments,
+        previousDeliveries: previousDeliveries.map(d => ({ amount: d.total_amount, date: d.delivery_date })),
+        previousPayments: previousPayments.map(p => ({ amount: p.amount, date: p.payment_date })),
         previousTotal,
         previousPaid,
         previousPendingAmount,
-        totalPendingAmount
+        totalPendingAmount,
+        calculation: `${todayTotal} - ${todayPaid} = ${todayPendingAmount} (today) + ${previousTotal} - ${previousPaid} = ${previousPendingAmount} (previous) = ${totalPendingAmount} (total)`
       })
 
       setTodayPending(todayPendingAmount)
@@ -222,11 +357,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         type: 'delivery',
         content: formatDeliveryContent(delivery),
         amount: delivery.total_amount,
-        timestamp: new Date(delivery.created_at).toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }),
+        timestamp: formatTimestamp(delivery.created_at),
         date: new Date(delivery.created_at).toLocaleDateString(),
         created_at: delivery.created_at
       }))
@@ -236,11 +367,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         type: 'payment',
         content: `${formatCurrency(payment.amount)} Paid`,
         amount: payment.amount,
-        timestamp: new Date(payment.created_at).toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }),
+        timestamp: formatTimestamp(payment.created_at),
         date: new Date(payment.created_at).toLocaleDateString(),
         created_at: payment.created_at
       }))
@@ -258,6 +385,19 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
     } finally {
       setLoading(false)
     }
+  }
+
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString)
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear().toString().slice(-2) // Last 2 digits of year
+    const time = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    })
+    return `${day}/${month}/${year} ${time}`
   }
 
   const formatDeliveryContent = (delivery: any) => {
@@ -282,8 +422,54 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
     setShowPaymentModal(true)
   }
 
+  const checkStockAvailability = async () => {
+    const insufficientStock = []
+    
+    for (const [productId, quantity] of Object.entries(selectedProducts)) {
+      if (quantity > 0) {
+        const product = milkProducts.find(p => p.id === productId)
+        if (product) {
+          try {
+            const { data: currentStock, error } = await supabase
+              .from('stock')
+              .select('current_quantity')
+              .eq('product_name', product.name)
+              .single()
+
+            if (error) {
+              console.error('Error checking stock for', product.name, ':', error)
+              insufficientStock.push({ product: product.name, available: 0, requested: quantity })
+            } else {
+              const available = currentStock?.current_quantity || 0
+              if (available < quantity) {
+                insufficientStock.push({ product: product.name, available, requested: quantity })
+              }
+            }
+          } catch (error) {
+            console.error('Error checking stock for', product.name, ':', error)
+            insufficientStock.push({ product: product.name, available: 0, requested: quantity })
+          }
+        }
+      }
+    }
+    
+    return insufficientStock
+  }
+
   const handleSaveMilk = async () => {
     try {
+      // Check stock availability first
+      const insufficientStock = await checkStockAvailability()
+      
+      if (insufficientStock.length > 0) {
+        const stockMessage = insufficientStock.map(item => 
+          `${item.product}: Available ${item.available}, Requested ${item.requested}`
+        ).join('\n')
+        
+        alert(`Insufficient stock for delivery:\n\n${stockMessage}\n\nPlease reduce quantities or add stock in Settings.`)
+        return
+      }
+
       const totalAmount = Object.entries(selectedProducts).reduce((sum, [productId, quantity]) => {
         const product = milkProducts.find(p => p.id === productId)
         return sum + (product ? product.price_per_packet * quantity : 0)
@@ -300,6 +486,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
             quantity
           }
         })
+
+      console.log('🥛 MILK DELIVERY DEBUG - Before saving:', {
+        shopId,
+        selectedProducts,
+        products,
+        totalAmount,
+        deliveryDate: new Date().toISOString().split('T')[0],
+        currentPending: { todayPending, previousPending, totalPending }
+      })
 
       const { error } = await supabase
         .from('deliveries')
@@ -318,19 +513,68 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
       if (error) throw error
 
+      console.log('✅ MILK DELIVERY SAVED - Amount:', totalAmount)
+
+      // Reduce stock for delivered products
+      for (const [productId, quantity] of Object.entries(selectedProducts)) {
+        if (quantity > 0) {
+          const product = milkProducts.find(p => p.id === productId)
+          if (product) {
+            try {
+              // Get current stock
+              const { data: currentStock, error: stockError } = await supabase
+                .from('stock')
+                .select('current_quantity')
+                .eq('product_name', product.name)
+                .single()
+
+              if (stockError) {
+                console.error('Error fetching stock for', product.name, ':', stockError)
+                continue
+              }
+
+              const newQuantity = Math.max(0, (currentStock?.current_quantity || 0) - quantity)
+              
+              // Update stock
+              const { error: updateError } = await supabase
+                .from('stock')
+                .update({ current_quantity: newQuantity })
+                .eq('product_name', product.name)
+
+              if (updateError) {
+                console.error('Error updating stock for', product.name, ':', updateError)
+              } else {
+                console.log(`📦 STOCK REDUCED - ${product.name}: ${quantity} units`)
+              }
+            } catch (stockError) {
+              console.error('Error reducing stock for', product.name, ':', stockError)
+            }
+          }
+        }
+      }
+
       // Reset form
       setSelectedProducts({})
       setShowMilkModal(false)
       
       // Reload all data to refresh the UI
       await loadAllData()
+      
+      console.log('🔄 DATA RELOADED - New pending amounts will be calculated')
     } catch (error) {
-      console.error('Error saving delivery:', error)
+      console.error('❌ Error saving delivery:', error)
     }
   }
 
   const handleSavePayment = async () => {
     try {
+      console.log('💰 PAYMENT DEBUG - Before saving:', {
+        shopId,
+        paymentAmount,
+        paymentDate: new Date().toISOString().split('T')[0],
+        currentPending: { todayPending, previousPending, totalPending }
+      })
+
       const { error } = await supabase
         .from('payments')
         .insert({
@@ -344,14 +588,18 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
       if (error) throw error
 
+      console.log('✅ PAYMENT SAVED - Amount:', paymentAmount)
+
       // Reset form
       setPaymentAmount(0)
       setShowPaymentModal(false)
       
       // Reload all data to refresh the UI
       await loadAllData()
+      
+      console.log('🔄 DATA RELOADED - New pending amounts will be calculated')
     } catch (error) {
-      console.error('Error saving payment:', error)
+      console.error('❌ Error saving payment:', error)
     }
   }
 
@@ -365,7 +613,13 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
   const getTotalAmount = () => {
     return Object.entries(selectedProducts).reduce((sum, [productId, quantity]) => {
       const product = milkProducts.find(p => p.id === productId)
-      return sum + (product ? product.price_per_packet * quantity : 0)
+      if (!product) return sum
+      
+      // Use custom rate if available, otherwise use default rate
+      const customRate = customRates[product.name]
+      const rate = customRate !== undefined ? customRate : product.price_per_packet
+      
+      return sum + (rate * quantity)
     }, 0)
   }
 
@@ -445,7 +699,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-40 space-y-4">
         {/* Today Separator */}
         <div className="flex justify-center">
           <div className="bg-teal-500 text-white px-4 py-1 rounded-full text-sm font-medium">
@@ -479,153 +733,220 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         <div ref={chatEndRef} />
       </div>
 
-      {/* Bottom Action Buttons - Fixed above navigation */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
+      {/* Bottom Action Buttons - Mobile Optimized */}
+      <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 shadow-lg">
         <div className="flex space-x-3">
           <button
             onClick={handleReceivePayment}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center space-x-2"
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 px-6 rounded-xl font-semibold text-base flex items-center justify-center space-x-2 transition-colors touch-manipulation"
           >
-            <ArrowDown className="w-5 h-5" />
+            <ArrowDown className="w-6 h-6" />
             <span>Receive</span>
           </button>
           <button
             onClick={handleAddMilk}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center space-x-2"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 px-6 rounded-xl font-semibold text-base flex items-center justify-center space-x-2 transition-colors touch-manipulation"
           >
-            <ArrowUp className="w-5 h-5" />
+            <ArrowUp className="w-6 h-6" />
             <span>Add Milk</span>
           </button>
         </div>
       </div>
 
-      {/* Add Milk Modal */}
+      {/* Add Milk Modal - Mobile Optimized */}
       {showMilkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Add Milk Delivery</h3>
-            
-            <div className="space-y-4">
-              {milkProducts.map(product => (
-                <div key={product.id} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-gray-500">{formatCurrency(product.price_per_packet)} each</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) - 1)}
-                      className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <input
-                      type="number"
-                      min="0"
-                      value={selectedProducts[product.id] || 0}
-                      onChange={(e) => updateQuantity(product.id, Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-12 text-center font-medium border border-gray-300 rounded px-1 py-1"
-                    />
-                    <button
-                      onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) + 1)}
-                      className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-lg w-full h-[85vh] sm:h-auto sm:max-h-[90vh] sm:max-w-md flex flex-col">
+            {/* Header - Mobile Optimized */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl sm:rounded-t-lg">
+              <h3 className="text-xl font-bold text-gray-900">Add Milk Delivery</h3>
+              <button
+                onClick={() => setShowMilkModal(false)}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Total:</span>
-                <span className="text-lg font-bold">{formatCurrency(getTotalAmount())}</span>
+            
+            {/* Scrollable Content - Mobile Optimized */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="space-y-3">
+                {milkProducts.map(product => (
+                  <div key={product.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-base truncate">{product.name}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {formatCurrency(customRates[product.name] !== undefined ? customRates[product.name] : product.price_per_packet)} each
+                          {customRates[product.name] !== undefined && (
+                            <span className="text-xs text-blue-600 ml-1">(Custom)</span>
+                          )}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-xs text-gray-500">Stock:</span>
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                            (stockLevels[product.name] || 0) <= 5 
+                              ? 'bg-red-100 text-red-700' 
+                              : (stockLevels[product.name] || 0) <= 10
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {stockLevels[product.name] || 0} units
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Mobile-Optimized Quantity Controls */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) - 1)}
+                        disabled={(selectedProducts[product.id] || 0) <= 0}
+                        className="w-12 h-12 rounded-full bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:opacity-50 flex items-center justify-center transition-colors touch-manipulation"
+                      >
+                        <Minus className="w-5 h-5 text-gray-700" />
+                      </button>
+                      
+                      <div className="flex-1 mx-4">
+                        <input
+                          type="number"
+                          min="0"
+                          value={selectedProducts[product.id] || 0}
+                          onChange={(e) => updateQuantity(product.id, Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full text-center text-lg font-bold border-2 border-gray-300 rounded-lg px-3 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <button
+                        onClick={() => updateQuantity(product.id, (selectedProducts[product.id] || 0) + 1)}
+                        className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors touch-manipulation"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    {/* Show total for this product if quantity > 0 */}
+                    {(selectedProducts[product.id] || 0) > 0 && (
+                      <div className="mt-3 text-center">
+                        <span className="text-sm text-gray-600">
+                          Total: {formatCurrency((selectedProducts[product.id] || 0) * (customRates[product.name] !== undefined ? customRates[product.name] : product.price_per_packet))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => setShowMilkModal(false)}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveMilk}
-                disabled={getTotalAmount() === 0}
-                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Save
-              </button>
+            {/* Fixed Bottom Section - Mobile Optimized */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6">
+              <div className="bg-blue-50 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900 text-lg">Total:</span>
+                  <span className="text-2xl font-bold text-blue-600">{formatCurrency(getTotalAmount())}</span>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowMilkModal(false)}
+                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-base transition-colors touch-manipulation"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMilk}
+                  disabled={getTotalAmount() === 0}
+                  className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base transition-colors touch-manipulation"
+                >
+                  Save Delivery
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Payment Modal */}
+      {/* Payment Modal - Mobile Optimized */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Receive Payment</h3>
-            
-            {/* Pending Amounts Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Today's Pending:</span>
-                  <span className="font-medium">{formatCurrency(todayPending)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Previous Pending:</span>
-                  <span className="font-medium">{formatCurrency(previousPending)}</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between">
-                  <span className="text-sm font-semibold text-gray-800">Total Pending:</span>
-                  <span className="font-bold text-lg">{formatCurrency(totalPending)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Amount Received
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter amount"
-                />
-              </div>
-              
-              {/* Full Amount Button */}
-              <button
-                onClick={() => setPaymentAmount(totalPending)}
-                className="w-full py-2 px-4 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
-              >
-                Full Amount ({formatCurrency(totalPending)})
-              </button>
-            </div>
-
-            <div className="flex space-x-3 mt-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-lg w-full h-[85vh] sm:h-auto sm:max-h-[90vh] sm:max-w-md flex flex-col">
+            {/* Header - Mobile Optimized */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl sm:rounded-t-lg">
+              <h3 className="text-xl font-bold text-gray-900">Receive Payment</h3>
               <button
                 onClick={() => setShowPaymentModal(false)}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
               >
-                Cancel
+                <X className="w-5 h-5" />
               </button>
-              <button
-                onClick={handleSavePayment}
-                disabled={paymentAmount <= 0}
-                className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Save Payment
-              </button>
+            </div>
+            
+            {/* Scrollable Content - Mobile Optimized */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {/* Pending Amounts Summary - Mobile Optimized */}
+              <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                <h4 className="font-semibold text-gray-900 mb-3">Payment Summary</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Today's Pending:</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(todayPending)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Previous Pending:</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(previousPending)}</span>
+                  </div>
+                  <div className="border-t border-blue-200 pt-3 flex justify-between items-center">
+                    <span className="font-semibold text-gray-900">Total Pending:</span>
+                    <span className="font-bold text-xl text-blue-600">{formatCurrency(totalPending)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    Amount Received
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full px-4 py-4 text-lg font-semibold border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
+                    placeholder="Enter amount"
+                  />
+                </div>
+                
+                {/* Full Amount Button - Mobile Optimized */}
+                <button
+                  onClick={() => setPaymentAmount(totalPending)}
+                  className="w-full py-4 px-6 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-semibold text-base transition-colors touch-manipulation border-2 border-blue-200"
+                >
+                  Full Amount ({formatCurrency(totalPending)})
+                </button>
+              </div>
+            </div>
+
+            {/* Fixed Bottom Section - Mobile Optimized */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6">
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-base transition-colors touch-manipulation"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePayment}
+                  disabled={paymentAmount <= 0}
+                  className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base transition-colors touch-manipulation"
+                >
+                  Save Payment
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -704,6 +1025,18 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
               </div>
             </div>
 
+            <div className="flex space-x-3 mb-4">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setShowCustomRatesModal(true)
+                }}
+                className="flex-1 py-2 px-4 border border-green-300 rounded-lg text-green-700 hover:bg-green-50"
+              >
+                Custom Rates
+              </button>
+            </div>
+            
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => setShowEditModal(false)}
@@ -717,6 +1050,70 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Rates Modal */}
+      {showCustomRatesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">Custom Rates for {shop?.name}</h3>
+                <button
+                  onClick={() => setShowCustomRatesModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {milkProducts.map(product => (
+                  <div key={product.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{product.name}</p>
+                      <p className="text-sm text-gray-500">
+                        Default: {formatCurrency(product.price_per_packet)}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={customRates[product.name] !== undefined ? customRates[product.name] : product.price_per_packet}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0
+                          setCustomRates(prev => ({
+                            ...prev,
+                            [product.name]: value
+                          }))
+                        }}
+                        className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowCustomRatesModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveCustomRates}
+                  className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Save Custom Rates
+                </button>
+              </div>
             </div>
           </div>
         </div>

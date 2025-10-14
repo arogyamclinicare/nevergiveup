@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react'
+import { Plus, Edit, Trash2, Save, X, ArrowLeft } from 'lucide-react'
 
 interface Product {
   id: string
@@ -10,7 +10,11 @@ interface Product {
   created_at: string
 }
 
-export default function ProductManagementScreen() {
+interface ProductManagementScreenProps {
+  onBack?: () => void
+}
+
+export default function ProductManagementScreen({ onBack }: ProductManagementScreenProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -110,7 +114,18 @@ export default function ProductManagementScreen() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
+        <div className="flex items-center space-x-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 px-3 py-2 rounded-lg hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+          )}
+          <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
+        </div>
         <button
           onClick={() => setShowAddForm(true)}
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"

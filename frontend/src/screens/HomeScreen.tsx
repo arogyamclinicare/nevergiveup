@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Store, Clock, DollarSign, TrendingUp, Package } from 'lucide-react'
+import { Store, Clock, DollarSign, TrendingUp, Package, Edit3, Save, X, Plus, Minus } from 'lucide-react'
 
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
@@ -34,6 +34,8 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
   })
   const [stockItems, setStockItems] = useState<StockItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [isEditingStock, setIsEditingStock] = useState(false)
+  const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({})
 
   const fetchStockData = async () => {
     try {
@@ -46,6 +48,60 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
       setStockItems(data || [])
     } catch (error) {
       console.error('Error fetching stock data:', error)
+    }
+  }
+
+  const startEditingStock = () => {
+    const quantities: {[key: string]: number} = {}
+    stockItems.forEach(item => {
+      quantities[item.id] = item.current_quantity
+    })
+    setEditingQuantities(quantities)
+    setIsEditingStock(true)
+  }
+
+  const cancelEditingStock = () => {
+    setIsEditingStock(false)
+    setEditingQuantities({})
+  }
+
+  const updateQuantity = (itemId: string, newQuantity: number) => {
+    setEditingQuantities(prev => ({
+      ...prev,
+      [itemId]: Math.max(0, newQuantity)
+    }))
+  }
+
+  const saveStockChanges = async () => {
+    try {
+      const updates = Object.entries(editingQuantities).map(([itemId, quantity]) => {
+        const item = stockItems.find(s => s.id === itemId)
+        if (item && item.current_quantity !== quantity) {
+          return { id: itemId, current_quantity: quantity }
+        }
+        return null
+      }).filter(Boolean)
+
+      if (updates.length > 0) {
+        for (const update of updates) {
+          const { error } = await supabase
+            .from('stock')
+            .update({ current_quantity: update!.current_quantity })
+            .eq('id', update!.id)
+          
+          if (error) throw error
+        }
+        
+        // Refresh stock data
+        await fetchStockData()
+        alert('Stock updated successfully!')
+      }
+      
+      setIsEditingStock(false)
+      setEditingQuantities({})
+    } catch (error) {
+      console.error('Error updating stock:', error)
+      alert('Failed to update stock. Please try again.')
     }
   }
 
@@ -207,19 +263,50 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
 
       {/* Stock Status Card */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 mt-6">
-        <div className="flex items-center mb-4">
-          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-            <Package className="w-4 h-4 text-green-600" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+              <Package className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900">Stock Status</h3>
+              <p className="text-sm text-gray-600">Current Inventory</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-gray-900">Stock Status</h3>
-            <p className="text-sm text-gray-600">Current Inventory</p>
-          </div>
+          
+          {!isEditingStock ? (
+            <button
+              onClick={startEditingStock}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span className="text-sm font-medium">Edit</span>
+            </button>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={cancelEditingStock}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+                <span className="text-sm font-medium">Cancel</span>
+              </button>
+              <button
+                onClick={saveStockChanges}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                <span className="text-sm font-medium">Save</span>
+              </button>
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-2 gap-2">
           {stockItems.map((item) => {
             const isLowStock = item.current_quantity <= item.low_stock_threshold
+            const editingQuantity = editingQuantities[item.id] ?? item.current_quantity
+            
             return (
               <div 
                 key={item.id}
@@ -229,21 +316,53 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
                     : 'bg-green-50 border-green-200'
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-1">
                   <span className={`text-xs font-semibold truncate ${
                     isLowStock ? 'text-red-800' : 'text-green-800'
                   }`}>
                     {item.product_name}
                   </span>
-                  <span className={`text-sm font-bold ${
-                    isLowStock ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {item.current_quantity}
-                  </span>
+                  
+                  {isEditingStock ? (
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => updateQuantity(item.id, editingQuantity - 1)}
+                        className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="number"
+                        value={editingQuantity}
+                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                        className="w-12 text-center text-xs border border-gray-300 rounded px-1 py-0.5"
+                        min="0"
+                      />
+                      <button
+                        onClick={() => updateQuantity(item.id, editingQuantity + 1)}
+                        className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className={`text-sm font-bold ${
+                      isLowStock ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {item.current_quantity}
+                    </span>
+                  )}
                 </div>
-                {isLowStock && (
-                  <div className="text-xs text-red-600 font-medium mt-0.5">
+                
+                {!isEditingStock && isLowStock && (
+                  <div className="text-xs text-red-600 font-medium">
                     Low Stock!
+                  </div>
+                )}
+                
+                {isEditingStock && (
+                  <div className="text-xs text-gray-500">
+                    Threshold: {item.low_stock_threshold}
                   </div>
                 )}
               </div>

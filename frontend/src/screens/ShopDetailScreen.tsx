@@ -337,6 +337,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           .from('deliveries')
           .select('id, total_amount, products, created_at')
           .eq('shop_id', shopId)
+          .eq('is_archived', false)
           .order('created_at', { ascending: false }),
         supabase
           .from('payments')
@@ -420,6 +421,72 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
   const handleReceivePayment = () => {
     setShowPaymentModal(true)
+  }
+
+  const deleteDelivery = async (deliveryId: string) => {
+    if (!confirm('Delete this delivery? This will restore stock and move it to history.')) return
+    try {
+      // 1) Fetch delivery details
+      const { data: delivery, error: fetchErr } = await supabase
+        .from('deliveries')
+        .select('id, shop_id, products, total_amount')
+        .eq('id', deliveryId)
+        .single()
+      if (fetchErr) throw fetchErr
+
+      // 2) Insert audit log
+      const { error: logErr } = await supabase
+        .from('deleted_deliveries')
+        .insert({
+          delivery_id: delivery.id,
+          shop_id: delivery.shop_id,
+          products: delivery.products,
+          total_amount: delivery.total_amount,
+          deleted_by: 'owner'
+        })
+      if (logErr) throw logErr
+
+      // 3) Restore stock
+      const items = Array.isArray(delivery.products) ? delivery.products : []
+      for (const item of items) {
+        const productName = item?.name
+        const qty = Number(item?.quantity) || 0
+        if (!productName || qty <= 0) continue
+
+        const { data: stockRow, error: stockFetchErr } = await supabase
+          .from('stock')
+          .select('current_quantity')
+          .eq('product_name', productName)
+          .single()
+        if (stockFetchErr) {
+          // If stock entry missing, create it
+          const { error: insertStockErr } = await supabase
+            .from('stock')
+            .insert({ product_name: productName, current_quantity: qty })
+          if (insertStockErr) console.error('Error creating stock for', productName, insertStockErr)
+        } else {
+          const newQty = (stockRow?.current_quantity || 0) + qty
+          const { error: updErr } = await supabase
+            .from('stock')
+            .update({ current_quantity: newQty })
+            .eq('product_name', productName)
+          if (updErr) console.error('Error restoring stock for', productName, updErr)
+        }
+      }
+
+      // 4) Archive delivery
+      const { error: archErr } = await supabase
+        .from('deliveries')
+        .update({ is_archived: true })
+        .eq('id', deliveryId)
+      if (archErr) throw archErr
+
+      // 5) Reload
+      await Promise.all([loadMessages(), loadPendingAmounts(), loadStockLevels()])
+    } catch (e) {
+      console.error('Delete delivery failed:', e)
+      alert('Failed to delete delivery. Please try again.')
+    }
   }
 
   const checkStockAvailability = async () => {
@@ -722,6 +789,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
                   <ArrowDown className="w-4 h-4" />
                 )}
                 <span className="text-xs font-medium">{message.timestamp}</span>
+                {message.type === 'delivery' && (
+                  <button
+                    onClick={() => deleteDelivery(message.id.replace('delivery-', ''))}
+                    className="ml-auto text-xs text-red-600 hover:text-red-800"
+                    title="Delete delivery"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
               <div className="whitespace-pre-line text-sm">
                 {message.content}

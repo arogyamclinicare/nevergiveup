@@ -35,6 +35,7 @@ export default function ShopManagementScreen({ onBack }: ShopManagementScreenPro
       const { data, error } = await supabase
         .from('shops')
         .select('*')
+        .eq('is_active', true)
         .order('route_number', { ascending: true })
 
       if (error) throw error

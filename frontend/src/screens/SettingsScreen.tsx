@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, Store, Package, Database, LogOut, User, Shield, UserX } from 'lucide-react'
+import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, Store, Package, Database, LogOut, User, Shield, UserX, History } from 'lucide-react'
+import DeletedDeliveriesHistory from './DeletedDeliveriesHistory'
 import ResetDialog from './ResetDialog'
 import ShopManagementScreen from './ShopManagementScreen'
 import ProductManagementScreen from './ProductManagementScreen'
@@ -13,7 +14,7 @@ interface SettingsScreenProps {
 
 export default function SettingsScreen({ userRole, onLogout }: SettingsScreenProps) {
   const [showResetDialog, setShowResetDialog] = useState(false)
-  const [activeTab, setActiveTab] = useState<'main' | 'shops' | 'products' | 'stock'>('main')
+  const [activeTab, setActiveTab] = useState<'main' | 'shops' | 'products' | 'stock' | 'history'>('main')
   const [showPinDialog, setShowPinDialog] = useState(false)
   const [pin, setPin] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -132,6 +133,12 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
     return <StockManagementScreen onBack={() => setActiveTab('main')} />
   }
 
+  if (activeTab === 'history') {
+    return (
+      <DeletedDeliveriesHistory onBack={() => setActiveTab('main')} />
+    )
+  }
+
   return (
     <div className="p-3 space-y-3">
       {/* Header */}
@@ -248,6 +255,17 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
           >
             <Package className="w-4 h-4 mx-auto mb-1" />
             Stock
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 p-3 text-sm font-medium ${
+              (activeTab as string) === 'history' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <History className="w-4 h-4 mx-auto mb-1" />
+            History
           </button>
         </div>
 

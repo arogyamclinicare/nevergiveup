@@ -31,7 +31,6 @@ interface ShopsScreenProps {
 const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [filteredShops, setFilteredShops] = useState<Shop[]>([]);
-  const [netBalance, setNetBalance] = useState<NetBalance>({ total_balance: 0, date: new Date().toISOString().split('T')[0] });
   const [searchTerm, setSearchTerm] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,7 +39,7 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
   // Load shops data
   useEffect(() => {
     loadShopsData();
-  }, [netBalance.date, refreshTrigger]);
+  }, [refreshTrigger]);
 
   // Daily status reset at 12 AM
   useEffect(() => {
@@ -108,7 +107,7 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
       const { data: todayDeliveries, error: todayDeliveriesError } = await supabase
         .from('deliveries')
         .select('shop_id, total_amount, delivery_status')
-        .eq('delivery_date', netBalance.date)
+        .eq('delivery_date', new Date().toISOString().split('T')[0])
         .eq('is_archived', false);
 
       if (todayDeliveriesError) {
@@ -119,7 +118,7 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
       const { data: todayPayments, error: todayPaymentsError } = await supabase
         .from('payments')
         .select('shop_id, amount, created_at')
-        .eq('payment_date', netBalance.date)
+        .eq('payment_date', new Date().toISOString().split('T')[0])
         .order('created_at', { ascending: false });
 
       if (todayPaymentsError) {
@@ -186,9 +185,6 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
       setShops(sortedShops);
       setFilteredShops(sortedShops);
 
-      // Calculate net balance
-      const totalBalance = processedShops.reduce((sum, shop) => sum + shop.current_balance, 0);
-      setNetBalance(prev => ({ ...prev, total_balance: totalBalance }));
 
     } catch (error) {
       console.error('Error loading shops data:', error);
@@ -272,52 +268,6 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
             />
           </div>
 
-          {/* Net Balance Section */}
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-3 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-900">Net Balance</h2>
-                <p className="text-xl font-bold text-gray-900">
-                  {formatCurrency(netBalance.total_balance)}
-                </p>
-              </div>
-              <div className="text-right">
-                <button
-                  onClick={() => setShowDatePicker(!showDatePicker)}
-                  className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
-                >
-                  <Calendar className="h-4 w-4" />
-                  <span className="text-xs font-medium">
-                    {formatDate(netBalance.date)}
-                  </span>
-                </button>
-                {showDatePicker && (
-                  <input
-                    type="date"
-                    value={netBalance.date}
-                    onChange={(e) => setNetBalance(prev => ({ ...prev, date: e.target.value }))}
-                    className="mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                  />
-                )}
-              </div>
-            </div>
-            
-            {/* Progress Bar */}
-            <div className="mt-2">
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>Delivered: {shops.filter(s => s.daily_status === 'delivered').length}</span>
-                <span>Pending: {shops.filter(s => s.daily_status === 'not_delivered').length}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                  style={{ 
-                    width: `${shops.length > 0 ? (shops.filter(s => s.daily_status === 'delivered').length / shops.length) * 100 : 0}%` 
-                  }}
-                ></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

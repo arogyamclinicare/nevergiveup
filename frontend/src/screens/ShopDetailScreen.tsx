@@ -48,6 +48,10 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
   const [showCustomRatesModal, setShowCustomRatesModal] = useState(false)
   const [customRates, setCustomRates] = useState<{[key: string]: number}>({})
   const [defaultRates, setDefaultRates] = useState<{[key: string]: number}>({})
+  const [showPendingModal, setShowPendingModal] = useState(false)
+  const [pendingAmount, setPendingAmount] = useState<number>(0)
+  const [pendingNote, setPendingNote] = useState<string>('')
+  const [paymentLoading, setPaymentLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   // Load all data when shop changes
@@ -146,6 +150,43 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
     }
   }
 
+  const handleAddPendingAmount = async () => {
+    try {
+      if (pendingAmount <= 0) {
+        alert('Please enter a valid pending amount')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('shop_pending_history')
+        .insert({
+          shop_id: shopId,
+          pending_amount: pendingAmount,
+          note: pendingNote || 'Manual pending amount added',
+          original_date: new Date().toISOString().split('T')[0]
+        })
+        .select()
+
+      if (error) {
+        console.error('Error adding pending amount:', error)
+        throw error
+      }
+
+      // Reset form
+      setPendingAmount(0)
+      setPendingNote('')
+      setShowPendingModal(false)
+      
+      // Reload pending amounts to update UI
+      await loadPendingAmounts()
+      
+      alert('Pending amount added successfully!')
+    } catch (error) {
+      console.error('❌ CRITICAL ERROR adding pending amount:', error)
+      alert(`Failed to add pending amount: ${error.message}`)
+    }
+  }
+
   const loadAllData = async () => {
     try {
       setLoading(true)
@@ -218,7 +259,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       const today = new Date().toISOString().split('T')[0]
       
       // Load all data in parallel for better performance
-      const [todayDeliveriesResult, todayPaymentsResult, allDeliveriesResult, allPaymentsResult] = await Promise.all([
+      const [todayDeliveriesResult, todayPaymentsResult, allDeliveriesResult, allPaymentsResult, pendingHistoryResult] = await Promise.all([
         supabase
           .from('deliveries')
           .select('total_amount, payment_amount')
@@ -236,6 +277,10 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         supabase
           .from('payments')
           .select('amount, payment_date')
+          .eq('shop_id', shopId),
+        supabase
+          .from('shop_pending_history')
+          .select('pending_amount, original_date')
           .eq('shop_id', shopId)
       ])
 
@@ -243,11 +288,13 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       if (todayPaymentsResult.error) throw todayPaymentsResult.error
       if (allDeliveriesResult.error) throw allDeliveriesResult.error
       if (allPaymentsResult.error) throw allPaymentsResult.error
+      if (pendingHistoryResult.error) throw pendingHistoryResult.error
 
       const todayDeliveries = todayDeliveriesResult.data || []
       const todayPayments = todayPaymentsResult.data || []
       const allDeliveries = allDeliveriesResult.data || []
       const allPayments = allPaymentsResult.data || []
+      const pendingHistory = pendingHistoryResult.data || []
 
       // Calculate today's pending - WITH VALIDATION
       const todayTotal = todayDeliveries?.reduce((sum, d) => {
@@ -300,8 +347,21 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       
       const previousPendingAmount = Math.max(0, previousTotal - previousPaid)
 
-      // Calculate total pending
-      const totalPendingAmount = todayPendingAmount + previousPendingAmount
+      // Calculate manual pending amounts from shop_pending_history
+      const manualPendingAmount = pendingHistory.reduce((sum, p) => {
+        const amount = Number(p.pending_amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid manual pending amount:', p)
+          return sum
+        }
+        return sum + amount
+      }, 0)
+
+      // Add manual pending to previous pending (since manual pending represents old amounts)
+      const adjustedPreviousPending = previousPendingAmount + manualPendingAmount
+
+      // Calculate total pending (delivery-based + manual pending)
+      const totalPendingAmount = todayPendingAmount + adjustedPreviousPending
 
       // Enhanced Debug logging for Smart Store investigation
       console.log('🔍 SMART STORE DEBUG - Pending Amounts:', {
@@ -317,12 +377,21 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         previousTotal,
         previousPaid,
         previousPendingAmount,
+        manualPendingHistory: pendingHistory.map(p => ({ amount: p.pending_amount, date: p.original_date })),
+        manualPendingAmount,
+        adjustedPreviousPending,
         totalPendingAmount,
-        calculation: `${todayTotal} - ${todayPaid} = ${todayPendingAmount} (today) + ${previousTotal} - ${previousPaid} = ${previousPendingAmount} (previous) = ${totalPendingAmount} (total)`
+        calculation: `${todayTotal} - ${todayPaid} = ${todayPendingAmount} (today) + ${previousTotal} - ${previousPaid} + ${manualPendingAmount} (manual) = ${adjustedPreviousPending} (previous) = ${totalPendingAmount} (total)`
+      })
+      
+      console.log('🎯 FINAL STATE VALUES:', {
+        todayPendingAmount,
+        adjustedPreviousPending,
+        totalPendingAmount
       })
 
       setTodayPending(todayPendingAmount)
-      setPreviousPending(previousPendingAmount)
+      setPreviousPending(adjustedPreviousPending)
       setTotalPending(totalPendingAmount)
     } catch (error) {
       console.error('Error loading pending amounts:', error)
@@ -453,19 +522,25 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         const qty = Number(item?.quantity) || 0
         if (!productName || qty <= 0) continue
 
-        const { data: stockRow, error: stockFetchErr } = await supabase
+        const { data: stockData, error: stockFetchErr } = await supabase
           .from('stock')
           .select('current_quantity')
           .eq('product_name', productName)
-          .single()
+        
         if (stockFetchErr) {
+          console.error('Error fetching stock for', productName, ':', stockFetchErr)
+          continue
+        }
+        
+        if (!stockData || stockData.length === 0) {
           // If stock entry missing, create it
           const { error: insertStockErr } = await supabase
             .from('stock')
             .insert({ product_name: productName, current_quantity: qty })
           if (insertStockErr) console.error('Error creating stock for', productName, insertStockErr)
         } else {
-          const newQty = (stockRow?.current_quantity || 0) + qty
+          const currentQty = stockData[0]?.current_quantity || 0
+          const newQty = currentQty + qty
           const { error: updErr } = await supabase
             .from('stock')
             .update({ current_quantity: newQty })
@@ -497,17 +572,20 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         const product = milkProducts.find(p => p.id === productId)
         if (product) {
           try {
-            const { data: currentStock, error } = await supabase
+            const { data: stockData, error } = await supabase
               .from('stock')
               .select('current_quantity')
               .eq('product_name', product.name)
-              .single()
 
             if (error) {
               console.error('Error checking stock for', product.name, ':', error)
               insufficientStock.push({ product: product.name, available: 0, requested: quantity })
+            } else if (!stockData || stockData.length === 0) {
+              // Product not found in stock table - assume no stock
+              console.warn('Product not found in stock:', product.name)
+              insufficientStock.push({ product: product.name, available: 0, requested: quantity })
             } else {
-              const available = currentStock?.current_quantity || 0
+              const available = stockData[0]?.current_quantity || 0
               if (available < quantity) {
                 insufficientStock.push({ product: product.name, available, requested: quantity })
               }
@@ -589,18 +667,23 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           if (product) {
             try {
               // Get current stock
-              const { data: currentStock, error: stockError } = await supabase
+              const { data: stockData, error: stockError } = await supabase
                 .from('stock')
                 .select('current_quantity')
                 .eq('product_name', product.name)
-                .single()
 
               if (stockError) {
                 console.error('Error fetching stock for', product.name, ':', stockError)
                 continue
               }
 
-              const newQuantity = Math.max(0, (currentStock?.current_quantity || 0) - quantity)
+              if (!stockData || stockData.length === 0) {
+                console.warn('Product not found in stock for reduction:', product.name)
+                continue
+              }
+
+              const currentQuantity = stockData[0]?.current_quantity || 0
+              const newQuantity = Math.max(0, currentQuantity - quantity)
               
               // Update stock
               const { error: updateError } = await supabase
@@ -611,7 +694,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
               if (updateError) {
                 console.error('Error updating stock for', product.name, ':', updateError)
               } else {
-                console.log(`📦 STOCK REDUCED - ${product.name}: ${quantity} units`)
+                console.log(`📦 STOCK REDUCED - ${product.name}: ${quantity} units (${currentQuantity} → ${newQuantity})`)
               }
             } catch (stockError) {
               console.error('Error reducing stock for', product.name, ':', stockError)
@@ -634,7 +717,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
   }
 
   const handleSavePayment = async () => {
+    // Prevent multiple rapid clicks
+    if (paymentLoading) {
+      console.log('⚠️ Payment already processing, ignoring click')
+      return
+    }
+
     try {
+      setPaymentLoading(true)
+      
       console.log('💰 PAYMENT DEBUG - Before saving:', {
         shopId,
         paymentAmount,
@@ -642,20 +733,18 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         currentPending: { todayPending, previousPending, totalPending }
       })
 
-      const { error } = await supabase
-        .from('payments')
-        .insert({
-          shop_id: shopId,
-          delivery_boy_id: '270cf1bb-44ff-4d62-b98f-24cb2aedcbcb',
-          amount: paymentAmount,
-          payment_date: new Date().toISOString().split('T')[0],
-          payment_type: 'cash',
-          notes: `Payment from ${shop?.name}`
-        })
+      // Use process_payment RPC function to handle FIFO logic and manual pending amounts
+      const { data, error } = await supabase.rpc('process_payment', {
+        p_shop_id: shopId,
+        p_amount: paymentAmount,
+        p_collected_by: 'delivery_boy',
+        p_payment_date: new Date().toISOString().split('T')[0],
+        p_notes: `Payment from ${shop?.name}`
+      })
 
       if (error) throw error
 
-      console.log('✅ PAYMENT SAVED - Amount:', paymentAmount)
+      console.log('✅ PAYMENT PROCESSED - Result:', data)
 
       // Reset form
       setPaymentAmount(0)
@@ -667,6 +756,9 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       console.log('🔄 DATA RELOADED - New pending amounts will be calculated')
     } catch (error) {
       console.error('❌ Error saving payment:', error)
+      alert('Failed to process payment. Please try again.')
+    } finally {
+      setPaymentLoading(false)
     }
   }
 
@@ -996,13 +1088,28 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
                   />
                 </div>
                 
-                {/* Full Amount Button - Mobile Optimized */}
-                <button
-                  onClick={() => setPaymentAmount(totalPending)}
-                  className="w-full py-4 px-6 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-semibold text-base transition-colors touch-manipulation border-2 border-blue-200"
-                >
-                  Full Amount ({formatCurrency(totalPending)})
-                </button>
+                {/* Quick Payment Buttons - Mobile Optimized */}
+                <div className="space-y-3">
+                  {/* Collect Today Button */}
+                  {todayPending > 0 && (
+                    <button
+                      onClick={() => setPaymentAmount(todayPending)}
+                      disabled={paymentLoading}
+                      className="w-full py-4 px-6 bg-green-100 text-green-700 rounded-xl hover:bg-green-200 font-semibold text-base transition-colors touch-manipulation border-2 border-green-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Collect Today ({formatCurrency(todayPending)})
+                    </button>
+                  )}
+                  
+                  {/* Full Amount Button */}
+                  <button
+                    onClick={() => setPaymentAmount(totalPending)}
+                    disabled={paymentLoading}
+                    className="w-full py-4 px-6 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-semibold text-base transition-colors touch-manipulation border-2 border-blue-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
+                    Full Amount ({formatCurrency(totalPending)})
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1017,10 +1124,10 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
                 </button>
                 <button
                   onClick={handleSavePayment}
-                  disabled={paymentAmount <= 0}
+                  disabled={paymentAmount <= 0 || paymentLoading}
                   className="flex-1 px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-base transition-colors touch-manipulation"
                 >
-                  Save Payment
+                  {paymentLoading ? 'Processing...' : 'Save Payment'}
                 </button>
               </div>
             </div>
@@ -1111,6 +1218,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
               >
                 Custom Rates
               </button>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setShowPendingModal(true)
+                }}
+                className="flex-1 py-2 px-4 border border-orange-300 rounded-lg text-orange-700 hover:bg-orange-50"
+              >
+                Add Pending
+              </button>
             </div>
             
             <div className="flex space-x-3 mt-6">
@@ -1188,6 +1304,71 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
                   className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   Save Custom Rates
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Pending Amount Modal */}
+      {showPendingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">Add Pending Amount</h3>
+                <button
+                  onClick={() => setShowPendingModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pending Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={pendingAmount}
+                    onChange={(e) => setPendingAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Enter pending amount"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Note (Optional)
+                  </label>
+                  <textarea
+                    value={pendingNote}
+                    onChange={(e) => setPendingNote(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Add a note about this pending amount"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowPendingModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddPendingAmount}
+                  disabled={pendingAmount <= 0}
+                  className="flex-1 py-2 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Add Pending
                 </button>
               </div>
             </div>

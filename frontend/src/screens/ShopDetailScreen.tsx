@@ -615,19 +615,31 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         return
       }
 
+      // Calculate total using custom rates if available
       const totalAmount = Object.entries(selectedProducts).reduce((sum, [productId, quantity]) => {
         const product = milkProducts.find(p => p.id === productId)
-        return sum + (product ? product.price_per_packet * quantity : 0)
+        if (!product) return sum
+        
+        // Use custom rate if available, otherwise use default rate
+        const customRate = customRates[product.name]
+        const rate = customRate !== undefined ? customRate : product.price_per_packet
+        
+        return sum + (rate * quantity)
       }, 0)
 
       const products = Object.entries(selectedProducts)
         .filter(([_, quantity]) => quantity > 0)
         .map(([productId, quantity]) => {
           const product = milkProducts.find(p => p.id === productId)
+          
+          // Use custom rate if available, otherwise use default rate
+          const customRate = customRates[product.name]
+          const rate = customRate !== undefined ? customRate : product.price_per_packet
+          
           return {
             id: productId,
             name: product?.name || '',
-            price_per_packet: product?.price_per_packet || 0,
+            price_per_packet: rate, // Use custom rate if set
             quantity
           }
         })

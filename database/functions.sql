@@ -191,38 +191,7 @@ BEGIN
   )
   RETURNING id INTO v_payment_id;
 
-  -- STEP 1: Pay old pending history first (FIFO - oldest first)
-  FOR v_history_record IN
-    SELECT * FROM shop_pending_history
-    WHERE shop_id = p_shop_id
-    ORDER BY original_date ASC, created_at ASC
-  LOOP
-    EXIT WHEN v_remaining_amount <= 0;
-    
-    v_to_apply := LEAST(v_remaining_amount, v_history_record.pending_amount);
-    
-    IF v_to_apply >= v_history_record.pending_amount THEN
-      -- Fully paid - delete from history
-      DELETE FROM shop_pending_history WHERE id = v_history_record.id;
-    ELSE
-      -- Partially paid - update remaining
-      UPDATE shop_pending_history
-      SET pending_amount = pending_amount - v_to_apply,
-          updated_at = now()
-      WHERE id = v_history_record.id;
-    END IF;
-    
-    v_remaining_amount := v_remaining_amount - v_to_apply;
-    v_applied_amount := v_applied_amount + v_to_apply;
-    
-    v_affected_history := v_affected_history || jsonb_build_object(
-      'history_id', v_history_record.id,
-      'original_date', v_history_record.original_date,
-      'amount_applied', v_to_apply
-    );
-  END LOOP;
-
-  -- STEP 2: Pay today's deliveries (FIFO - oldest first)
+  -- STEP 1: Pay deliveries first (FIFO - oldest first)
   FOR v_delivery_record IN
     SELECT * FROM deliveries
     WHERE shop_id = p_shop_id
@@ -251,6 +220,37 @@ BEGIN
     v_affected_deliveries := v_affected_deliveries || jsonb_build_object(
       'delivery_id', v_delivery_record.id,
       'delivery_date', v_delivery_record.delivery_date,
+      'amount_applied', v_to_apply
+    );
+  END LOOP;
+
+  -- STEP 2: Pay manual pending history (FIFO - oldest first) - AFTER deliveries
+  FOR v_history_record IN
+    SELECT * FROM shop_pending_history
+    WHERE shop_id = p_shop_id
+    ORDER BY original_date ASC, created_at ASC
+  LOOP
+    EXIT WHEN v_remaining_amount <= 0;
+    
+    v_to_apply := LEAST(v_remaining_amount, v_history_record.pending_amount);
+    
+    IF v_to_apply >= v_history_record.pending_amount THEN
+      -- Fully paid - delete from history
+      DELETE FROM shop_pending_history WHERE id = v_history_record.id;
+    ELSE
+      -- Partially paid - update remaining
+      UPDATE shop_pending_history
+      SET pending_amount = pending_amount - v_to_apply,
+          updated_at = now()
+      WHERE id = v_history_record.id;
+    END IF;
+    
+    v_remaining_amount := v_remaining_amount - v_to_apply;
+    v_applied_amount := v_applied_amount + v_to_apply;
+    
+    v_affected_history := v_affected_history || jsonb_build_object(
+      'history_id', v_history_record.id,
+      'original_date', v_history_record.original_date,
       'amount_applied', v_to_apply
     );
   END LOOP;

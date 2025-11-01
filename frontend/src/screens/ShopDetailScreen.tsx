@@ -324,56 +324,34 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       const allPayments = allPaymentsResult.data || []
       const pendingHistory = pendingHistoryResult.data || []
 
-      // Calculate today's pending - WITH VALIDATION
-      const todayTotal = todayDeliveries?.reduce((sum, d) => {
-        const amount = Number(d.total_amount) || 0
-        if (isNaN(amount) || amount < 0) {
-          console.error('Invalid delivery amount:', d)
+      // Calculate today's pending - use unpaid amount per delivery
+      const todayPendingAmount = todayDeliveries?.reduce((sum, d) => {
+        const totalAmount = Number(d.total_amount) || 0
+        const paidAmount = Number(d.payment_amount) || 0
+        const unpaid = totalAmount - paidAmount
+        if (isNaN(unpaid) || unpaid < 0) {
+          console.error('Invalid delivery amount calculation:', d)
           return sum
         }
-        return sum + amount
+        return sum + unpaid
       }, 0) || 0
-      
-      const todayPaid = todayPayments?.reduce((sum, p) => {
-        const amount = Number(p.amount) || 0
-        if (isNaN(amount) || amount < 0) {
-          console.error('Invalid payment amount:', p)
-          return sum
-        }
-        return sum + amount
-      }, 0) || 0
-      
-      const todayPendingAmount = Math.max(0, todayTotal - todayPaid)
 
-      // Calculate previous pending (before today) - FIXED DATE COMPARISON
+      // Calculate previous pending (before today) - use unpaid amount per delivery
       const previousDeliveries = allDeliveries?.filter(d => {
         const deliveryDate = new Date(d.delivery_date).toISOString().split('T')[0]
         return deliveryDate < today
       }) || []
-      const previousPayments = allPayments?.filter(p => {
-        const paymentDate = new Date(p.payment_date).toISOString().split('T')[0]
-        return paymentDate < today
-      }) || []
       
-      const previousTotal = previousDeliveries.reduce((sum, d) => {
-        const amount = Number(d.total_amount) || 0
-        if (isNaN(amount) || amount < 0) {
-          console.error('Invalid previous delivery amount:', d)
+      const previousPendingAmount = previousDeliveries.reduce((sum, d) => {
+        const totalAmount = Number(d.total_amount) || 0
+        const paidAmount = Number(d.payment_amount) || 0
+        const unpaid = totalAmount - paidAmount
+        if (isNaN(unpaid) || unpaid < 0) {
+          console.error('Invalid previous delivery amount calculation:', d)
           return sum
         }
-        return sum + amount
+        return sum + unpaid
       }, 0)
-      
-      const previousPaid = previousPayments.reduce((sum, p) => {
-        const amount = Number(p.amount) || 0
-        if (isNaN(amount) || amount < 0) {
-          console.error('Invalid previous payment amount:', p)
-          return sum
-        }
-        return sum + amount
-      }, 0)
-      
-      const previousPendingAmount = Math.max(0, previousTotal - previousPaid)
 
       // Calculate manual pending amounts from shop_pending_history
       const manualPendingAmount = pendingHistory.reduce((sum, p) => {
@@ -395,21 +373,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       console.log('🔍 SMART STORE DEBUG - Pending Amounts:', {
         shopId,
         today,
-        todayDeliveries: todayDeliveries.map(d => ({ amount: d.total_amount })),
-        todayPayments: todayPayments.map(p => ({ amount: p.amount })),
-        todayTotal,
-        todayPaid,
-        todayPendingAmount,
-        previousDeliveries: previousDeliveries.map(d => ({ amount: d.total_amount, date: d.delivery_date })),
-        previousPayments: previousPayments.map(p => ({ amount: p.amount, date: p.payment_date })),
-        previousTotal,
-        previousPaid,
-        previousPendingAmount,
+        todayDeliveries: todayDeliveries.map(d => ({ total: d.total_amount, paid: d.payment_amount, unpaid: d.total_amount - d.payment_amount })),
+        previousDeliveries: previousDeliveries.map(d => ({ total: d.total_amount, paid: d.payment_amount, unpaid: d.total_amount - d.payment_amount, date: d.delivery_date })),
         manualPendingHistory: pendingHistory.map(p => ({ amount: p.pending_amount, date: p.original_date })),
+        todayPendingAmount,
+        previousPendingAmount,
         manualPendingAmount,
         adjustedPreviousPending,
         totalPendingAmount,
-        calculation: `${todayTotal} - ${todayPaid} = ${todayPendingAmount} (today) + ${previousTotal} - ${previousPaid} + ${manualPendingAmount} (manual) = ${adjustedPreviousPending} (previous) = ${totalPendingAmount} (total)`
+        calculation: `${todayPendingAmount} (today unpaid) + ${previousPendingAmount} (old unpaid) + ${manualPendingAmount} (manual) = ${adjustedPreviousPending} (previous) = ${totalPendingAmount} (total)`
       })
       
       console.log('🎯 FINAL STATE VALUES:', {

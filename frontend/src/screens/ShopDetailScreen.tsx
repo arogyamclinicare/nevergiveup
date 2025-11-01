@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, ArrowUp, ArrowDown, Plus, Minus, X, DollarSign, Settings } from 'lucide-react'
+import { ArrowLeft, ArrowUp, ArrowDown, Plus, Minus, X, DollarSign, Settings, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatCurrency } from '../utils/formatCurrency'
 
@@ -10,7 +10,7 @@ interface ShopDetailScreenProps {
 
 interface ChatMessage {
   id: string
-  type: 'delivery' | 'payment'
+  type: 'delivery' | 'payment' | 'pending'
   content: string
   amount: number
   timestamp: string
@@ -414,8 +414,8 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
   const loadMessages = async () => {
     try {
-      // Load deliveries and payments in parallel
-      const [deliveriesResult, paymentsResult] = await Promise.all([
+      // Load deliveries, payments, and activity logs in parallel
+      const [deliveriesResult, paymentsResult, activityLogsResult] = await Promise.all([
         supabase
           .from('deliveries')
           .select('id, total_amount, products, created_at')
@@ -426,14 +426,24 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           .from('payments')
           .select('id, amount, created_at')
           .eq('shop_id', shopId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('activity_log')
+          .select('id, message, amount, created_at, activity_type')
+          .eq('shop_id', shopId)
+          .eq('activity_type', 'pending_added')
           .order('created_at', { ascending: false })
       ])
 
       if (deliveriesResult.error) throw deliveriesResult.error
       if (paymentsResult.error) throw paymentsResult.error
+      if (activityLogsResult.error) {
+        console.warn('Activity logs query failed:', activityLogsResult.error)
+      }
 
       const deliveries = deliveriesResult.data || []
       const payments = paymentsResult.data || []
+      const pendingActivityLogs = activityLogsResult.data || []
 
       // Convert to chat messages
       const deliveryMessages: ChatMessage[] = (deliveries || []).map(delivery => ({
@@ -456,8 +466,18 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         created_at: payment.created_at
       }))
 
+      const pendingMessages: ChatMessage[] = (pendingActivityLogs || []).map(activity => ({
+        id: `pending-${activity.id}`,
+        type: 'pending',
+        content: activity.message,
+        amount: activity.amount,
+        timestamp: formatTimestamp(activity.created_at),
+        date: new Date(activity.created_at).toLocaleDateString(),
+        created_at: activity.created_at
+      }))
+
       // Combine and sort by created_at timestamp (oldest first for WhatsApp style)
-      const allMessages = [...deliveryMessages, ...paymentMessages]
+      const allMessages = [...deliveryMessages, ...paymentMessages, ...pendingMessages]
         .sort((a, b) => {
           // Sort by created_at timestamp, oldest first (ascending)
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -898,11 +918,15 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
             <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
               message.type === 'delivery' 
                 ? 'bg-blue-100 text-blue-900' 
+                : message.type === 'pending'
+                ? 'bg-amber-100 text-amber-900'
                 : 'bg-green-100 text-green-900'
             }`}>
               <div className="flex items-center space-x-2 mb-1">
                 {message.type === 'delivery' ? (
                   <ArrowUp className="w-4 h-4" />
+                ) : message.type === 'pending' ? (
+                  <Clock className="w-4 h-4" />
                 ) : (
                   <ArrowDown className="w-4 h-4" />
                 )}

@@ -172,13 +172,27 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         throw error
       }
 
+      // Create activity log entry for chat display
+      const pendingHistoryId = data?.[0]?.id
+      await supabase.from('activity_log').insert({
+        shop_id: shopId,
+        activity_type: 'pending_added',
+        message: `Manual pending added: ₹${pendingAmount}${pendingNote ? ' - ' + pendingNote : ''}`,
+        amount: pendingAmount,
+        delivery_date: new Date().toISOString().split('T')[0],
+        metadata: { pending_history_id: pendingHistoryId }
+      })
+
       // Reset form
       setPendingAmount(0)
       setPendingNote('')
       setShowPendingModal(false)
       
-      // Reload pending amounts to update UI
-      await loadPendingAmounts()
+      // Reload pending amounts and messages to update UI
+      await Promise.all([
+        loadPendingAmounts(),
+        loadMessages()
+      ])
       
       alert('Pending amount added successfully!')
     } catch (error) {

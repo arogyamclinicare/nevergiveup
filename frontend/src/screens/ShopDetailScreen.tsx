@@ -353,38 +353,21 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         return sum + unpaid
       }, 0)
 
-      // Separate manual pending by date - today vs previous
-      const manualPendingToday = pendingHistory
-        .filter(p => {
-          const pendingDate = new Date(p.original_date).toISOString().split('T')[0]
-          return pendingDate === today
-        })
-        .reduce((sum, p) => {
-          const amount = Number(p.pending_amount) || 0
-          if (isNaN(amount) || amount < 0) {
-            console.error('Invalid manual pending amount:', p)
-            return sum
-          }
-          return sum + amount
-        }, 0)
-
-      const manualPendingPrevious = pendingHistory
-        .filter(p => {
-          const pendingDate = new Date(p.original_date).toISOString().split('T')[0]
-          return pendingDate < today
-        })
-        .reduce((sum, p) => {
-          const amount = Number(p.pending_amount) || 0
-          if (isNaN(amount) || amount < 0) {
-            console.error('Invalid manual pending amount:', p)
-            return sum
-          }
-          return sum + amount
-        }, 0)
+      // ALL manual pending goes to Previous Pending (as per business logic)
+      const manualPendingAmount = pendingHistory.reduce((sum, p) => {
+        const amount = Number(p.pending_amount) || 0
+        if (isNaN(amount) || amount < 0) {
+          console.error('Invalid manual pending amount:', p)
+          return sum
+        }
+        return sum + amount
+      }, 0)
 
       // Calculate final pending amounts
-      const adjustedTodayPending = todayPendingAmount + manualPendingToday
-      const adjustedPreviousPending = previousPendingAmount + manualPendingPrevious
+      // Today Pending = Only today's deliveries (unpaid amount)
+      // Previous Pending = Old deliveries (unpaid amount) + ALL manual pending
+      const adjustedTodayPending = todayPendingAmount
+      const adjustedPreviousPending = previousPendingAmount + manualPendingAmount
 
       // Calculate total pending (delivery-based + manual pending)
       const totalPendingAmount = adjustedTodayPending + adjustedPreviousPending
@@ -397,13 +380,12 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         previousDeliveries: previousDeliveries.map(d => ({ total: d.total_amount, paid: d.payment_amount, unpaid: d.total_amount - d.payment_amount, date: d.delivery_date })),
         manualPendingHistory: pendingHistory.map(p => ({ amount: p.pending_amount, date: p.original_date })),
         todayPendingAmount,
-        manualPendingToday,
+        manualPendingAmount,
         adjustedTodayPending,
         previousPendingAmount,
-        manualPendingPrevious,
         adjustedPreviousPending,
         totalPendingAmount,
-        calculation: `${todayPendingAmount} (today delivery) + ${manualPendingToday} (today manual) = ${adjustedTodayPending} (today total) + ${previousPendingAmount} (old delivery) + ${manualPendingPrevious} (old manual) = ${adjustedPreviousPending} (previous total) = ${totalPendingAmount} (grand total)`
+        calculation: `${todayPendingAmount} (today delivery only) + ${previousPendingAmount} (old delivery unpaid) + ${manualPendingAmount} (all manual pending) = ${adjustedPreviousPending} (previous total) = ${totalPendingAmount} (grand total)`
       })
       
       console.log('🎯 FINAL STATE VALUES:', {

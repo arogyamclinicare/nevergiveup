@@ -292,7 +292,8 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           .from('deliveries')
           .select('total_amount, payment_amount')
           .eq('shop_id', shopId)
-          .eq('delivery_date', today),
+          .eq('delivery_date', today)
+          .eq('is_archived', false),  // CRITICAL: Only active deliveries for today
         supabase
           .from('payments')
           .select('amount')
@@ -301,7 +302,8 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         supabase
           .from('deliveries')
           .select('total_amount, payment_amount, delivery_date')
-          .eq('shop_id', shopId),
+          .eq('shop_id', shopId)
+          .eq('is_archived', false),  // CRITICAL: Exclude archived deliveries
         supabase
           .from('payments')
           .select('amount, payment_date')

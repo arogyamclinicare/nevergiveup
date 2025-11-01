@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { Archive, AlertTriangle, Clock, DollarSign, Settings as SettingsIcon, Store, Package, Database, LogOut, User, Shield, UserX, History } from 'lucide-react'
 import DeletedDeliveriesHistory from './DeletedDeliveriesHistory'
 import ResetDialog from './ResetDialog'
@@ -19,6 +20,7 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
   const [pin, setPin] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [pinError, setPinError] = useState('')
+  const [clearingData, setClearingData] = useState(false)
   
   // Default PIN from environment configuration
   const DEFAULT_PIN = ENV.DEFAULT_PIN
@@ -28,6 +30,37 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
     // Close the dialog and show success message
     setShowResetDialog(false)
     alert('Daily reset completed successfully! All deliveries have been archived.')
+  }
+
+  const handleClearData = async () => {
+    if (!confirm('⚠️ WARNING: This will delete ALL pending data (deliveries, payments, activity logs). Shops and products will be kept.\n\nAre you sure you want to continue?')) {
+      return
+    }
+
+    if (!confirm('This is your final warning. ALL PENDING DATA WILL BE PERMANENTLY DELETED. Continue?')) {
+      return
+    }
+
+    try {
+      setClearingData(true)
+      
+      const { data, error } = await supabase.rpc('clear_pending_data')
+
+      if (error) throw error
+
+      if (data && data.success) {
+        alert(`All pending data cleared! Deleted: ${data.deleted_deliveries} deliveries, ${data.deleted_payments} payments, ${data.deleted_pending_history} pending entries, ${data.deleted_activity_logs} activity logs.`)
+        // Refresh the page
+        window.location.reload()
+      } else {
+        throw new Error('Failed to clear data')
+      }
+    } catch (error: any) {
+      console.error('Error clearing data:', error)
+      alert('Failed to clear data: ' + (error.message || 'Unknown error'))
+    } finally {
+      setClearingData(false)
+    }
   }
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -291,29 +324,22 @@ export default function SettingsScreen({ userRole, onLogout }: SettingsScreenPro
               </div>
             </div>
 
-            {/* Clear All Data - For Testing */}
+            {/* Clear Pending Data - For Testing */}
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
                   <AlertTriangle className="w-5 h-5 text-orange-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-medium text-orange-900">Clear All Data</h3>
-                  <p className="text-sm text-orange-700">Delete all shops, deliveries, and payments (for testing)</p>
+                  <h3 className="font-medium text-orange-900">Clear Pending Data</h3>
+                  <p className="text-sm text-orange-700">Delete deliveries, payments, and activity logs (keeps shops & products)</p>
                 </div>
                 <button
-                  onClick={() => {
-                    if (confirm('⚠️ WARNING: This will delete ALL data including shops, deliveries, and payments. This cannot be undone!\n\nAre you sure you want to continue?')) {
-                      if (confirm('This is your final warning. ALL DATA WILL BE PERMANENTLY DELETED. Continue?')) {
-                        // Clear all data
-                        alert('All data has been cleared! Refresh the page to see the changes.')
-                        // In a real implementation, you would call the database delete functions here
-                      }
-                    }
-                  }}
-                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                  onClick={handleClearData}
+                  disabled={clearingData}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                 >
-                  Clear All
+                  {clearingData ? 'Clearing...' : 'Clear Pending'}
                 </button>
               </div>
             </div>

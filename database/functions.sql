@@ -763,7 +763,7 @@ BEGIN
     );
   END IF;
 
-  -- Get all-time totals (including archived)
+  -- Get active deliveries totals (excluding archived - archived pending is in shop_pending_history)
   SELECT
     COALESCE(SUM(total_amount), 0),
     COALESCE(SUM(payment_amount), 0),
@@ -777,7 +777,8 @@ BEGIN
     v_pending_count,
     v_last_delivery_date
   FROM deliveries
-  WHERE shop_id = p_shop_id;
+  WHERE shop_id = p_shop_id
+    AND is_archived = false;
 
   -- Get today's totals (active only)
   SELECT

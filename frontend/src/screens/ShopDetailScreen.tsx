@@ -404,13 +404,13 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
   const loadMessages = async () => {
     try {
-      // Load deliveries, payments, and activity logs in parallel
+      // Load ALL deliveries (including archived for history), payments, and activity logs in parallel
       const [deliveriesResult, paymentsResult, activityLogsResult] = await Promise.all([
         supabase
           .from('deliveries')
           .select('id, total_amount, products, created_at')
           .eq('shop_id', shopId)
-          .eq('is_archived', false)
+          // REMOVED is_archived filter to show complete history
           .order('created_at', { ascending: false }),
         supabase
           .from('payments')
@@ -419,9 +419,9 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           .order('created_at', { ascending: false }),
         supabase
           .from('activity_log')
-          .select('id, message, amount, created_at, activity_type')
+          .select('id, message, amount, created_at, activity_type, metadata')
           .eq('shop_id', shopId)
-          .eq('activity_type', 'pending_added')
+          .in('activity_type', ['delivery_added', 'payment_collected', 'payment_partial', 'pending_added'])
           .order('created_at', { ascending: false })
       ])
 
@@ -433,16 +433,16 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
       const deliveries = deliveriesResult.data || []
       const payments = paymentsResult.data || []
-      const pendingActivityLogs = activityLogsResult.data || []
+      const activityLogs = activityLogsResult.data || []
 
       console.log('📨 LOADING MESSAGES DEBUG:', {
         deliveriesCount: deliveries.length,
         paymentsCount: payments.length,
-        pendingActivityLogsCount: pendingActivityLogs.length,
-        pendingActivityLogsData: pendingActivityLogs
+        activityLogsCount: activityLogs.length,
+        activityLogsData: activityLogs
       })
 
-      // Convert to chat messages
+      // Convert to chat messages from actual deliveries/payments data
       const deliveryMessages: ChatMessage[] = (deliveries || []).map(delivery => ({
         id: `delivery-${delivery.id}`,
         type: 'delivery',
@@ -463,9 +463,10 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         created_at: payment.created_at
       }))
 
-      const pendingMessages: ChatMessage[] = (pendingActivityLogs || []).map(activity => ({
-        id: `pending-${activity.id}`,
-        type: 'pending',
+      // Convert activity logs to messages (for manual pending and any missing entries)
+      const activityMessages: ChatMessage[] = (activityLogs || []).map(activity => ({
+        id: `activity-${activity.id}`,
+        type: activity.activity_type === 'pending_added' ? 'pending' : activity.activity_type === 'delivery_added' ? 'delivery' : 'payment',
         content: activity.message,
         amount: activity.amount,
         timestamp: formatTimestamp(activity.created_at),
@@ -474,7 +475,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       }))
 
       // Combine and sort by created_at timestamp (oldest first for WhatsApp style)
-      const allMessages = [...deliveryMessages, ...paymentMessages, ...pendingMessages]
+      const allMessages = [...deliveryMessages, ...paymentMessages, ...activityMessages]
         .sort((a, b) => {
           // Sort by created_at timestamp, oldest first (ascending)
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -684,7 +685,7 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
         currentPending: { todayPending, previousPending, totalPending }
       })
 
-      const { error } = await supabase
+      const { data: deliveryData, error } = await supabase
         .from('deliveries')
         .insert({
           shop_id: shopId,
@@ -698,10 +699,31 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
           notes: `Milk delivered to ${shop?.name}`,
           delivered_at: new Date().toISOString()
         })
+        .select()
+        .single()
 
       if (error) throw error
 
-      console.log('✅ MILK DELIVERY SAVED - Amount:', totalAmount)
+      console.log('✅ MILK DELIVERY SAVED - Amount:', totalAmount, 'ID:', deliveryData?.id)
+
+      // Create activity log entry for chat history
+      if (deliveryData?.id) {
+        const { error: activityError } = await supabase.from('activity_log').insert({
+          shop_id: shopId,
+          delivery_boy_id: '270cf1bb-44ff-4d62-b98f-24cb2aedcbcb',
+          activity_type: 'delivery_added',
+          message: `Delivery added to ${shop?.name || 'shop'}: ${formatCurrency(totalAmount)}`,
+          amount: totalAmount,
+          delivery_date: new Date().toISOString().split('T')[0],
+          metadata: { delivery_id: deliveryData.id }
+        })
+
+        if (activityError) {
+          console.error('❌ Error creating activity log:', activityError)
+        } else {
+          console.log('✅ Activity log created for delivery')
+        }
+      }
 
       // Reduce stock for delivered products
       for (const [productId, quantity] of Object.entries(selectedProducts)) {

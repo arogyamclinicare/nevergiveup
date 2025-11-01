@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "executionArgs": {
+    "projectName": "2,5",
+    "projectPath": "C:\\Users\\suraj\\OneDrive\\Desktop\\2,5",
+    "testIds": [],
+    "additionalInstruction": "Test all critical user flows including login, delivery creation, payment collection with FIFO logic, manual pending amounts, and daily reset. Pay special attention to financial calculations and ensure no data loss during operations. Use credentials: owner/owner123 or staff/staff123 for login.",
+    "envs": {
+      "API_KEY": "sk-user-NiOvctZzl_SiBb1JXUucS54K4OtLvNzG2p3myRyVl5cDs3WBpJZHhS0UJupny1KuBdFzu1RKaJbU-kfVGTWxjggOJ1EdCyYxaGAflER69piEVGFvt9fSFG94wPnJIwK5abE"
+    }
+  },
+  "proxy": "http://dde5d167-21f6-4b88-8367-c773cf58c216:Cn46cyLDt6k0K5h7IwVsuBexOigCLNwf@tun.testsprite.com:8080"
+}

@@ -1,0 +1,552 @@
+[
+  {
+    "id": "TC001",
+    "title": "User Authentication Success",
+    "description": "Verify login is successful with valid credentials and appropriate role-based access is granted with session management.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid username and password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Check user is redirected to appropriate home dashboard based on role"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify session token is created and stored properly"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User Authentication Failure and Lockout",
+    "description": "Verify login fails with invalid credentials and account locks after defined failed attempts.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login screen"
+      },
+      {
+        "type": "action",
+        "description": "Attempt login with invalid credentials multiple times"
+      },
+      {
+        "type": "assertion",
+        "description": "Check error messages appear for invalid login attempts"
+      },
+      {
+        "type": "assertion",
+        "description": "After threshold attempts, verify account lockout and appropriate message is shown"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Home Dashboard Data Accuracy",
+    "description": "Verify the home dashboard displays accurate daily delivery, collection summary and route progress.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as business owner"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to home dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify daily delivery counts, collected, and pending amounts match backend data"
+      },
+      {
+        "type": "assertion",
+        "description": "Check route progress indicator updates correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Shop Management CRUD Operations",
+    "description": "Verify creating, reading, updating, and deleting shops with activity logging and unique shop name validation.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to shop management screen"
+      },
+      {
+        "type": "action",
+        "description": "Create a new shop with a unique name"
+      },
+      {
+        "type": "assertion",
+        "description": "Check new shop appears in list and activity log entry created"
+      },
+      {
+        "type": "action",
+        "description": "Update shop details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated details are saved and logged"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create shop with duplicate name"
+      },
+      {
+        "type": "assertion",
+        "description": "Check validation error is shown preventing duplicate shop name"
+      },
+      {
+        "type": "action",
+        "description": "Delete a shop"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify shop is removed and deletion is recorded in activity logs"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Delivery Entry and Stock Validation",
+    "description": "Validate delivery creation flow with multi-product selection, stock checks, and accurate total calculations.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as delivery personnel"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to delivery screen"
+      },
+      {
+        "type": "action",
+        "description": "Select shop and multiple milk products with quantities"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to enter quantity exceeding stock"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error prevents exceeding available stock"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid quantities"
+      },
+      {
+        "type": "action",
+        "description": "Save the delivery record"
+      },
+      {
+        "type": "assertion",
+        "description": "Check delivery record is saved with auto-calculated totals"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify stock levels are reduced accordingly"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Payment Collection FIFO Processing",
+    "description": "Verify payment allocation respects FIFO order, supports partial, full, and deferred payments correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as collection staff"
+      },
+      {
+        "type": "action",
+        "description": "Select shop with multiple pending deliveries"
+      },
+      {
+        "type": "action",
+        "description": "Enter a partial payment amount"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify payment applied to oldest delivery first and remaining amounts reflect properly"
+      },
+      {
+        "type": "action",
+        "description": "Enter a full payment amount covering multiple deliveries"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify FIFO logic fully allocates payments correctly"
+      },
+      {
+        "type": "action",
+        "description": "Mark payment to be collected tomorrow"
+      },
+      {
+        "type": "assertion",
+        "description": "Check payment is deferred and recorded appropriately"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Manual Pending Amount Entry and Integration",
+    "description": "Confirm adding manual pending amounts for old customers integrates correctly with payments and reporting.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to shop details"
+      },
+      {
+        "type": "action",
+        "description": "Add manual pending amount for existing customer"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify manual pending amount appears in pending list and integrates with payment allocation"
+      },
+      {
+        "type": "action",
+        "description": "Process payment against manual pending amount"
+      },
+      {
+        "type": "assertion",
+        "description": "Check payment deduction reflects correctly and updates reports"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Daily Reset Archiving and Preservation",
+    "description": "Test daily reset process archives only paid deliveries, preserves pending data, and generates accurate summaries.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as business owner"
+      },
+      {
+        "type": "action",
+        "description": "Verify paid deliveries and pending amounts before reset"
+      },
+      {
+        "type": "action",
+        "description": "Initiate daily reset"
+      },
+      {
+        "type": "assertion",
+        "description": "Check paid deliveries are archived and removed from daily counters"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify pending deliveries and amounts remain intact and no data loss occurs"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm reset action is logged with timestamp"
+      },
+      {
+        "type": "action",
+        "description": "Access summary reports post reset"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify summary reports accurately reflect archived and pending data"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Activity Logging Integrity",
+    "description": "Verify all user actions generate immutable activity logs with accurate timestamps and user info.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform a variety of actions: create delivery, update payment, delete delivery"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify activity logs are created for each action with correct timestamp and user identity"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to modify or delete an activity log entry"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm modification or deletion is not permitted"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Deleted Deliveries History and Restoration",
+    "description": "Validate deleted deliveries are tracked properly, can be restored, and stock levels update accordingly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Delete a delivery from shop detail"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify delivery appears in deleted deliveries history with correct details"
+      },
+      {
+        "type": "action",
+        "description": "Restore the deleted delivery"
+      },
+      {
+        "type": "assertion",
+        "description": "Check delivery is reinstated and stock levels increase accordingly"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm restoration is logged in activity feed"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Real-time Updates via Supabase",
+    "description": "Ensure real-time updates propagate instantly to UI with auto-refresh and toast notifications for all relevant changes.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform data change in one client (e.g., delivery creation)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify other connected clients receive real-time update and UI refreshes automatically"
+      },
+      {
+        "type": "assertion",
+        "description": "Check toast notification appears confirming successful operation"
+      },
+      {
+        "type": "action",
+        "description": "Trigger backend error or failed update"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI shows error toast notification and state consistency is maintained"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Navigation System with Persistent State and Deep Linking",
+    "description": "Test bottom navigation tabs maintain persistent state and deep linking navigates to correct screen with state restoration.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate between bottom navigation tabs multiple times"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each tab preserves its state after navigation"
+      },
+      {
+        "type": "action",
+        "description": "Use deep link to open app at a specific screen or tab"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm app opens correct tab with the expected content loaded"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Input Validation for Products and Shops",
+    "description": "Verify that shop names and product names are unique and all inputs validate correctly to prevent invalid data.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to create two shops with identical names"
+      },
+      {
+        "type": "assertion",
+        "description": "Validation error is displayed preventing duplicate shop names"
+      },
+      {
+        "type": "action",
+        "description": "Attempt product creation/edit with invalid or empty values"
+      },
+      {
+        "type": "assertion",
+        "description": "Proper validation messages appear and disallow saving invalid data"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "React Query Caching and Lazy Loading Efficiency",
+    "description": "Confirm React Query caching reduces redundant data fetching and lazy loading improves UI responsiveness.",
+    "category": "performance",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to different screens multiple times"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that network calls are minimized due to cached data usage"
+      },
+      {
+        "type": "action",
+        "description": "Observe loading of deferred components or screens"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm lazy loading reduces initial load times and improves responsiveness"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Performance on 3G Mobile Networks",
+    "description": "Test app load time and responsiveness meet targets on simulated 3G network conditions.",
+    "category": "performance",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate 3G network speed"
+      },
+      {
+        "type": "action",
+        "description": "Load multiple app screens and perform common actions like delivery and payment entry"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify screen load times and reactions remain within acceptable thresholds"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Secure Session Timeout and Role Enforcement",
+    "description": "Validate session timeout triggers logout and role-based access limits user capabilities appropriately.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as staff user"
+      },
+      {
+        "type": "action",
+        "description": "Remain inactive until session timeout period expires"
+      },
+      {
+        "type": "assertion",
+        "description": "User session ends and user is redirected to login"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access owner-only features with staff role"
+      },
+      {
+        "type": "assertion",
+        "description": "Access is denied or elements are hidden according to role permissions"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Toast Notification System Verification",
+    "description": "Verify toast notifications display correctly for success, error, warning, and info messages with auto-dismissal.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Trigger a successful action (e.g., delivery saved)"
+      },
+      {
+        "type": "assertion",
+        "description": "Success toast notification appears and auto-hides after interval"
+      },
+      {
+        "type": "action",
+        "description": "Trigger an error condition (e.g., payment failed)"
+      },
+      {
+        "type": "assertion",
+        "description": "Error toast notification appears with appropriate message and auto-dismisses"
+      },
+      {
+        "type": "action",
+        "description": "Trigger warning and info notifications"
+      },
+      {
+        "type": "assertion",
+        "description": "Both notification types appear correctly and hide automatically"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Mobile PWA Offline Support and Install Prompt",
+    "description": "Verify app functions in offline mode and prompts for installation on supported devices.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Load app on mobile device with internet connection"
+      },
+      {
+        "type": "action",
+        "description": "Turn off network to simulate offline"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cached data and screens remain accessible and usable"
+      },
+      {
+        "type": "action",
+        "description": "Check if install prompt is presented when conditions allow"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm PWA install prompt behaves as expected"
+      }
+    ]
+  }
+]

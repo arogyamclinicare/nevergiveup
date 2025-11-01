@@ -96,11 +96,19 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
         .from('payments')
         .select('shop_id, amount, payment_date');
 
+      // Get manual pending amounts from shop_pending_history
+      const { data: manualPending, error: manualPendingError } = await supabase
+        .from('shop_pending_history')
+        .select('shop_id, pending_amount');
+
       if (deliveriesError) {
         console.warn('Deliveries query failed:', deliveriesError);
       }
       if (paymentsError) {
         console.warn('Payments query failed:', paymentsError);
+      }
+      if (manualPendingError) {
+        console.warn('Manual pending query failed:', manualPendingError);
       }
 
       // Get today's deliveries to check status
@@ -130,6 +138,7 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
         // Calculate balance from all deliveries and payments - WITH VALIDATION
         const shopAllDeliveries = allDeliveries?.filter(d => d.shop_id === shop.id) || [];
         const shopAllPayments = allPayments?.filter(p => p.shop_id === shop.id) || [];
+        const shopManualPending = manualPending?.filter(p => p.shop_id === shop.id) || [];
         
         const totalDelivered = shopAllDeliveries.reduce((sum, d) => {
           const amount = Number(d.total_amount) || 0;
@@ -148,8 +157,18 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
           }
           return sum + amount;
         }, 0);
+
+        // Add manual pending amounts
+        const totalManualPending = shopManualPending.reduce((sum, p) => {
+          const amount = Number(p.pending_amount) || 0;
+          if (isNaN(amount) || amount < 0) {
+            console.error('Invalid manual pending amount in shop list:', p);
+            return sum;
+          }
+          return sum + amount;
+        }, 0);
         
-        const currentBalance = totalDelivered - totalPaid;
+        const currentBalance = totalDelivered - totalPaid + totalManualPending;
         
         // Get today's deliveries and payments
         const shopDeliveries = todayDeliveries?.filter(d => d.shop_id === shop.id) || [];

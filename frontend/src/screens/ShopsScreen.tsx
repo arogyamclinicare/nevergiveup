@@ -86,31 +86,6 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
 
       if (shopsError) throw shopsError;
 
-      // Calculate balances from deliveries and payments instead of using shop_daily_balance
-      const { data: allDeliveries, error: deliveriesError } = await supabase
-        .from('deliveries')
-        .select('shop_id, total_amount, payment_amount, delivery_date')
-        .eq('is_archived', false);
-
-      const { data: allPayments, error: paymentsError } = await supabase
-        .from('payments')
-        .select('shop_id, amount, payment_date');
-
-      // Get manual pending amounts from shop_pending_history
-      const { data: manualPending, error: manualPendingError } = await supabase
-        .from('shop_pending_history')
-        .select('shop_id, pending_amount');
-
-      if (deliveriesError) {
-        console.warn('Deliveries query failed:', deliveriesError);
-      }
-      if (paymentsError) {
-        console.warn('Payments query failed:', paymentsError);
-      }
-      if (manualPendingError) {
-        console.warn('Manual pending query failed:', manualPendingError);
-      }
-
       // Get today's deliveries to check status
       const { data: todayDeliveries, error: todayDeliveriesError } = await supabase
         .from('deliveries')
@@ -133,42 +108,18 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
         console.warn('Today payments query failed:', todayPaymentsError);
       }
 
-      // Process and combine data
-      const processedShops = shops?.map(shop => {
-        // Calculate balance from all deliveries and payments - WITH VALIDATION
-        const shopAllDeliveries = allDeliveries?.filter(d => d.shop_id === shop.id) || [];
-        const shopAllPayments = allPayments?.filter(p => p.shop_id === shop.id) || [];
-        const shopManualPending = manualPending?.filter(p => p.shop_id === shop.id) || [];
-        
-        const totalDelivered = shopAllDeliveries.reduce((sum, d) => {
-          const amount = Number(d.total_amount) || 0;
-          if (isNaN(amount) || amount < 0) {
-            console.error('Invalid delivery amount in shop list:', d);
-            return sum;
-          }
-          return sum + amount;
-        }, 0);
-        
-        const totalPaid = shopAllPayments.reduce((sum, p) => {
-          const amount = Number(p.amount) || 0;
-          if (isNaN(amount) || amount < 0) {
-            console.error('Invalid payment amount in shop list:', p);
-            return sum;
-          }
-          return sum + amount;
-        }, 0);
+      // Process and combine data - use database function for accurate balance calculation
+      const processedShops = await Promise.all(shops?.map(async shop => {
+        // Use the database function for accurate balance calculation
+        const { data: balanceData, error: balanceError } = await supabase.rpc('get_shop_balance', {
+          p_shop_id: shop.id
+        });
 
-        // Add manual pending amounts
-        const totalManualPending = shopManualPending.reduce((sum, p) => {
-          const amount = Number(p.pending_amount) || 0;
-          if (isNaN(amount) || amount < 0) {
-            console.error('Invalid manual pending amount in shop list:', p);
-            return sum;
-          }
-          return sum + amount;
-        }, 0);
-        
-        const currentBalance = totalDelivered - totalPaid + totalManualPending;
+        if (balanceError) {
+          console.error(`Error getting balance for shop ${shop.name}:`, balanceError);
+        }
+
+        const currentBalance = balanceData?.total_pending || 0;
         
         // Get today's deliveries and payments
         const shopDeliveries = todayDeliveries?.filter(d => d.shop_id === shop.id) || [];
@@ -192,7 +143,7 @@ const ShopsScreen: React.FC<ShopsScreenProps> = ({ onSelectShop, refreshTrigger 
             created_at: lastPayment.created_at
           } : undefined
         };
-      }) || [];
+      }) || []);
 
       // Sort shops: not delivered first, then delivered
       const sortedShops = processedShops.sort((a, b) => {

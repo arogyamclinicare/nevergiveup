@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Store, Clock, DollarSign, TrendingUp, Package, Edit3, Save, X, Plus, Minus } from 'lucide-react'
+import { Store, Clock, DollarSign, TrendingUp, Package, Edit3, Save, X, Plus, Minus, Calendar } from 'lucide-react'
 
 interface HomeScreenProps {
   onDeliveryRefresh?: () => void
@@ -36,6 +36,7 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
   const [loading, setLoading] = useState(true)
   const [isEditingStock, setIsEditingStock] = useState(false)
   const [editingQuantities, setEditingQuantities] = useState<{[key: string]: number}>({})
+  const [simulatingTomorrow, setSimulatingTomorrow] = useState(false)
 
   const fetchStockData = async () => {
     try {
@@ -153,6 +154,37 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
     }
   }
 
+  const simulateTomorrow = async () => {
+    if (!confirm('Simulate tomorrow? This will archive today\'s deliveries and move pending to history.')) {
+      return
+    }
+
+    try {
+      setSimulatingTomorrow(true)
+      
+      const { data, error } = await supabase
+        .rpc('process_daily_reset', { p_date: new Date().toISOString().split('T')[0] })
+
+      if (error) throw error
+
+      if (data && data.success) {
+        alert(`Tomorrow simulated! ${data.processed_deliveries} deliveries processed, ₹${data.total_pending_moved.toFixed(2)} moved to history.`)
+        // Refresh stats
+        await fetchRouteStats()
+        // Trigger parent component refresh
+        if (onDeliveryRefresh) onDeliveryRefresh()
+        if (onCollectionRefresh) onCollectionRefresh()
+      } else {
+        throw new Error('Failed to simulate tomorrow')
+      }
+    } catch (error: any) {
+      console.error('Error simulating tomorrow:', error)
+      alert('Failed to simulate tomorrow: ' + (error.message || 'Unknown error'))
+    } finally {
+      setSimulatingTomorrow(false)
+    }
+  }
+
   useEffect(() => {
     fetchRouteStats()
     fetchStockData()
@@ -232,6 +264,18 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
             <p className="text-lg font-bold text-orange-600">₹{routeStats.pending.toFixed(2)}</p>
           </div>
         </div>
+
+        {/* Simulate Tomorrow Button */}
+        <button
+          onClick={simulateTomorrow}
+          disabled={simulatingTomorrow}
+          className="w-full mt-4 flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="font-medium">
+            {simulatingTomorrow ? 'Simulating...' : 'Simulate Tomorrow'}
+          </span>
+        </button>
       </div>
 
       {/* Route Progress Card */}

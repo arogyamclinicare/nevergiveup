@@ -174,14 +174,28 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
 
       // Create activity log entry for chat display
       const pendingHistoryId = data?.[0]?.id
-      await supabase.from('activity_log').insert({
+      console.log('📝 CREATING ACTIVITY LOG:', {
+        shopId,
+        pendingAmount,
+        pendingNote,
+        pendingHistoryId
+      })
+      
+      const { data: activityData, error: activityError } = await supabase.from('activity_log').insert({
         shop_id: shopId,
         activity_type: 'pending_added',
         message: `Manual pending added: ₹${pendingAmount}${pendingNote ? ' - ' + pendingNote : ''}`,
         amount: pendingAmount,
         delivery_date: new Date().toISOString().split('T')[0],
         metadata: { pending_history_id: pendingHistoryId }
-      })
+      }).select()
+
+      if (activityError) {
+        console.error('❌ Error creating activity log:', activityError)
+        // Don't throw, pending was already saved successfully
+      } else {
+        console.log('✅ Activity log created successfully:', activityData)
+      }
 
       // Reset form
       setPendingAmount(0)
@@ -444,6 +458,13 @@ export default function ShopDetailScreen({ shopId, onBack }: ShopDetailScreenPro
       const deliveries = deliveriesResult.data || []
       const payments = paymentsResult.data || []
       const pendingActivityLogs = activityLogsResult.data || []
+
+      console.log('📨 LOADING MESSAGES DEBUG:', {
+        deliveriesCount: deliveries.length,
+        paymentsCount: payments.length,
+        pendingActivityLogsCount: pendingActivityLogs.length,
+        pendingActivityLogsData: pendingActivityLogs
+      })
 
       // Convert to chat messages
       const deliveryMessages: ChatMessage[] = (deliveries || []).map(delivery => ({

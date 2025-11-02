@@ -109,43 +109,21 @@ export default function HomeScreen({ onDeliveryRefresh, onCollectionRefresh, ref
   const fetchRouteStats = async () => {
     try {
       setLoading(true)
-      const today = new Date().toISOString().split('T')[0]
       
-      // Get today's deliveries and payments in parallel
-      const [deliveriesResult, paymentsResult, shopsResult] = await Promise.all([
-        supabase
-          .from('deliveries')
-          .select('shop_id, total_amount, payment_amount, delivery_status')
-          .eq('delivery_date', today),
-        supabase
-          .from('payments')
-          .select('shop_id, amount')
-          .eq('payment_date', today),
-        supabase
-          .from('shops')
-          .select('id')
-          .eq('is_active', true)
-      ])
-
-      const deliveries = deliveriesResult.data || []
-      const payments = paymentsResult.data || []
-      const shops = shopsResult.data || []
-
-      // Calculate totals
-      const delivered = deliveries.reduce((sum, d) => sum + Number(d.total_amount), 0)
-      const collected = payments.reduce((sum, p) => sum + Number(p.amount), 0)
-      const pending = delivered - collected
-
-      // Count shops that have any deliveries as visited
-      const shopsVisited = new Set(deliveries.map(d => d.shop_id)).size
-      const totalShops = shops.length
+      // Use the database function for accurate stats (includes all pending from history)
+      const { data, error } = await supabase.rpc('get_route_stats')
+      
+      if (error) throw error
+      if (!data || !data.success) {
+        throw new Error('Failed to fetch route stats')
+      }
 
       setRouteStats({
-        delivered,
-        collected,
-        pending,
-        shopsVisited,
-        totalShops
+        delivered: data.today_delivered || 0,
+        collected: data.today_collected || 0,
+        pending: data.pending || 0,
+        shopsVisited: data.shops_visited || 0,
+        totalShops: data.total_shops || 0
       })
     } catch (error) {
       console.error('Error fetching route stats:', error)
